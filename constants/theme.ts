@@ -5,37 +5,42 @@
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+// Color Palette
+const primaryWhite = '#FFFFFF';
+const primaryAccent = '#00CFFD';
+const darkText = '#111113';
+const darkBg = '#111113';
+const darkBgSecondary = '#222228';
+const mediumGray = '#4A4A58';
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+    text: darkText,
+    background: primaryWhite,
+    tint: primaryAccent,
+    icon: mediumGray,
+    tabIconDefault: mediumGray,
+    tabIconSelected: primaryAccent,
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    text: primaryWhite,
+    background: darkBg,
+    tint: primaryAccent,
+    icon: mediumGray,
+    tabIconDefault: mediumGray,
+    tabIconSelected: primaryAccent,
   },
 };
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
+    /** iOS system sans-serif */
     sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
+    /** iOS serif */
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
+    /** iOS rounded */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
+    /** iOS monospace */
     mono: 'ui-monospace',
   },
   default: {
