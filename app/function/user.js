@@ -1,4 +1,4 @@
-import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithEmailAndPassword, signInWithRedirect } from "firebase/auth";
 import { addDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { auth, firestore } from "../../firebase";
 
@@ -37,7 +37,7 @@ async function createUser(data) {
 
 async function signInOauth() {
     try {
-        const result = await signInWithPopup(auth, provider);
+        const result = signInWithRedirect(auth, provider);
         const isExistingUser = await getUserByEmail(result.user.email);
         if (isExistingUser.status === 200) {
             return { status: 200, user: isExistingUser.user };  

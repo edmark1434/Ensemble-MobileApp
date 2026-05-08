@@ -1,10 +1,14 @@
+import ContinueWithGoogle from '@/components/continue-with-google';
 import { Colors } from '@/constants/theme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { ActivityIndicator, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { signIn, signInOauth } from '../function/user';
-
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { Platform } from 'react-native';
+import { getRedirectResult } from 'firebase/auth';
+import { auth } from '@/firebase';
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,6 +22,7 @@ export default function Login() {
   const [isSuccess, setIsSuccess] = useState(false);
   const router = useRouter();
 
+  
 
   const validatationInput = () => {
     let isValid = true;
@@ -96,7 +101,7 @@ export default function Login() {
     // TODO: forgot password flow
   };
 
-  const handleGoogle = () => {
+  const handleGoogleSuccess = (userInfo: any) => {
     try {
       setLoading(true);
       setError({
@@ -104,22 +109,8 @@ export default function Login() {
         password: '',
         general: '',
       });
+      console.log('Google sign-in success:', userInfo);
       setIsSuccess(false);
-      signInOauth()
-        .then((response:any) => {
-          console.log('Google login response:', response);
-          if (response.status === 200) {
-            setIsSuccess(true);
-            router.push('/(tabs)');
-          } else {
-            setIsSuccess(false);
-            setError({
-              email: '',
-              password: '',
-              general: response.error || 'Error signing in with Google',
-            });
-          }
-        })
     } catch (error) {
       setIsSuccess(false);
       setError({
@@ -130,6 +121,15 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogleError = (message: string) => {
+    setLoading(false);
+    setError({
+      email: '',
+      password: '',
+      general: message,
+    });
   };
 
 
@@ -199,10 +199,11 @@ export default function Login() {
           <View style={styles.orLine} />
         </View>
 
-        <TouchableOpacity style={styles.socialButton} onPress={handleGoogle} activeOpacity={0.7}>
-          <Image source={require('@/assets/Google.svg.webp')} style={styles.googleIcon} />
-          <Text style={styles.socialText}>Continue with Google</Text>
-        </TouchableOpacity>
+        <ContinueWithGoogle 
+          onSuccess={handleGoogleSuccess}
+          onError={handleGoogleError}
+          disabled={loading}
+        />
 
         </View>
 

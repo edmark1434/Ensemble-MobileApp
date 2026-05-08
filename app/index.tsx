@@ -3,6 +3,7 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { Animated, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 const CAROUSEL_IMAGES = [
     require('@/assets/get_started.png'),
@@ -12,7 +13,13 @@ const CAROUSEL_IMAGES = [
 
 const CAROUSEL_INTERVAL = 3000;
 
+GoogleSignin.configure({
+  webClientId: '87436960116-ne8o4s06rdt35oni873all5s4lanvh1t.apps.googleusercontent.com',
+    offlineAccess: true,
+    forceCodeForRefreshToken: true,
+});
 export default function GetStarted() {
+
     const colorScheme = useColorScheme();
     const [currentSlide, setCurrentSlide] = useState(0);
     const dotAnim = useRef(new Animated.Value(0)).current;
@@ -37,7 +44,7 @@ export default function GetStarted() {
         router.push('/auth/signup');
     };
 
-    const handleLogIn = () => {
+    const handleLogIn = async() => {
         router.push('/auth/login');
     };
 

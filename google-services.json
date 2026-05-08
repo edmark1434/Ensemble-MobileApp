@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "87436960116",
+    "project_id": "ensemble-c1f8c",
+    "storage_bucket": "ensemble-c1f8c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:87436960116:android:7a8769695b3b3c702b8c21",
+        "android_client_info": {
+          "package_name": "com.edmar.ensemble"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "87436960116-a7cookfj9hqt0i2hntdbmal1k2rdeifs.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.edmar.ensemble",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "87436960116-ne8o4s06rdt35oni873all5s4lanvh1t.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBKe_8fS0fAgKcdseh_K4IycyaaLGif3gQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "87436960116-ne8o4s06rdt35oni873all5s4lanvh1t.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "87436960116-q5ie6bc9vct64apno353phcnshbpuk4j.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.edmar.ensemble"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
