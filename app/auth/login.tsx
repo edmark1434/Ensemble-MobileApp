@@ -2,13 +2,9 @@ import ContinueWithGoogle from '@/components/continue-with-google';
 import { Colors } from '@/constants/theme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { signIn, signInOauth } from '../function/user';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { Platform } from 'react-native';
-import { getRedirectResult } from 'firebase/auth';
-import { auth } from '@/firebase';
+import { signIn, signInOauth } from '../../function/user';
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -109,17 +105,37 @@ export default function Login() {
         password: '',
         general: '',
       });
-      console.log('Google sign-in success:', userInfo);
-      setIsSuccess(false);
+      
+      signInOauth(userInfo.data).then((response: any) => {
+        if (response.status === 200) {
+          setIsSuccess(true);
+          router.push('/(tabs)');
+          setLoading(false);
+        } else {
+          setLoading(false);
+          setIsSuccess(false);
+          setError({
+            email: '',
+            password: '',
+            general: response.error || 'Error signing in with Google',
+          });
+        }
+      }).catch((error: any) => {        
+        setLoading(false);
+        setError({
+          email: '',
+          password: '',
+          general: 'Error signing in with Google',
+        });
+      });
     } catch (error) {
+      setLoading(false);
       setIsSuccess(false);
       setError({
         email: '',
         password: '',
         general: 'Error signing in with Google',
       });
-    } finally {
-      setLoading(false);
     }
   };
 

@@ -1,10 +1,10 @@
 import { AppTitle } from '@/components/app-title';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { Animated, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Image, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 const CAROUSEL_IMAGES = [
     require('@/assets/get_started.png'),
     require('@/assets/get_started.png'),
@@ -13,11 +13,13 @@ const CAROUSEL_IMAGES = [
 
 const CAROUSEL_INTERVAL = 3000;
 
-GoogleSignin.configure({
-  webClientId: '87436960116-ne8o4s06rdt35oni873all5s4lanvh1t.apps.googleusercontent.com',
-    offlineAccess: true,
-    forceCodeForRefreshToken: true,
-});
+if (Platform.OS !== 'web') {
+    GoogleSignin.configure({
+        webClientId: process.env.WEB_CLIENT_ID,
+        offlineAccess: true,
+        forceCodeForRefreshToken: true,
+    });
+}
 export default function GetStarted() {
 
     const colorScheme = useColorScheme();

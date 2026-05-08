@@ -1,8 +1,8 @@
+import { auth } from '@/firebase';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'; // ✅ popup
 import React, { useCallback, useMemo, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { auth } from '@/firebase';
 
 type Props = {
   onSuccess?: (data: any) => void;
@@ -21,18 +21,14 @@ export default function ContinueWithGoogle({ onSuccess, onError, disabled }: Pro
       setLoading(true);
 
       if (isWeb) {
-        // ✅ signInWithPopup returns result directly — no redirect needed
         const result = await signInWithPopup(auth, provider);
-        const idToken = await result.user.getIdToken();
-
+        // ✅ Minimal payload for faster processing
         onSuccess?.({
           data: {
-            idToken,
             user: {
-              email: result.user.email,
-              name: result.user.displayName,
-              photo: result.user.photoURL,
               uid: result.user.uid,
+              email: result.user.email,
+              displayName: result.user.displayName,
             }
           }
         });

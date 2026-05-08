@@ -1,9 +1,10 @@
+import ContinueWithGoogle from '@/components/continue-with-google';
 import { Colors } from '@/constants/theme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ActivityIndicator, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { signInOauth, signUp } from '../function/user';
+import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { signInOauth, signUp,createUser, getUserByUsername, getUserByEmail } from '../../function/user';
 
 export default function SignUp() {
 	const router = useRouter();
@@ -25,7 +26,7 @@ export default function SignUp() {
 		confirmPassword: '',
 	});
 
-	const validateForm = () => {
+	const validateForm = async() => {
 		const nextErrors = {
 			fullName: '',
 			username: '',
@@ -35,11 +36,23 @@ export default function SignUp() {
 		};
 
 		if (!fullName.trim()) nextErrors.fullName = 'Full name is required';
-		if (!username.trim()) nextErrors.username = 'Username is required';
+		if (!username.trim()) {
+			nextErrors.username = 'Username is required';
+		} else {
+			const user = await getUserByUsername(username);
+			if (user.status === 200) {
+				nextErrors.username = 'Username is already taken';
+			}
+		}
 		if (!email.trim()) {
 			nextErrors.email = 'Email is required';
 		} else if (!/\S+@\S+\.\S+/.test(email)) {
 			nextErrors.email = 'Email is invalid';
+		} else {
+			const user = await getUserByEmail(email);
+			if (user.status === 200) {
+				nextErrors.email = 'Email is already registered';
+			}
 		}
 
 		if (!password) {
@@ -59,67 +72,79 @@ export default function SignUp() {
 		return !Object.values(nextErrors).some((value) => value);
 	};
 
-	const splitName = (name: string) => {
-		const trimmed = name.trim();
-		const parts = trimmed.split(/\s+/);
-		const firstname = parts[0] || trimmed;
-		const lastname = parts.slice(1).join(' ') || '';
-		return { firstname, lastname };
-	};
 
 	const handleCreateAccount = async () => {
-		const isValid = validateForm();
-		if (!isValid) {
-			setIsSuccess(false);
-			setMessage('');
-			return;
+	const isValid = await validateForm();
+
+	if (!isValid) return;
+
+	try {
+		setLoading(true);
+		setMessage('');
+		setIsSuccess(false);
+
+		// 1. CREATE AUTH USER
+		const response = await signUp(email, password);
+
+		if (response.user) {
+
+		// 2. SAVE TO FIRESTORE
+		await createUser({
+			uid: response.user.uid,
+			email: response.user.email,
+			fullName,
+			username,
+		});
+
+		setIsSuccess(true);
+		setMessage('Account created successfully');
+
+		router.push('/auth/login');
 		}
 
+	} catch (error) {
+		console.log(error);
+		setIsSuccess(false);
+		setMessage('Error creating account');
+
+	} finally {
+		setLoading(false);
+	}
+	};
+
+	const handleGoogleSuccess = (userInfo: any) => {
 		try {
 			setLoading(true);
 			setMessage('');
 			setIsSuccess(false);
-			const response: any = await signUp(email, password);
-
-			if (response?.user?.uid) {
-				const { firstname, lastname } = splitName(fullName);
-				console.log('Signup response:', response);
-				setIsSuccess(true);
-				setMessage('Account created successfully');
-				router.push('/auth/login');
-				return;
-			}
-
-			setMessage('Unable to create account');
-		} catch (error: any) {
+			signInOauth(userInfo.data)
+				.then((response: any) => {
+					if (response.status === 200) {
+						setIsSuccess(true);
+						setMessage('Signed in with Google successfully');
+						router.push('/(tabs)');
+					} else {
+						setIsSuccess(false);
+						setMessage(response.error || 'Error signing in with Google');
+					}
+				})
+				.catch(() => {
+					setIsSuccess(false);
+					setMessage('Error signing in with Google');
+				})
+				.finally(() => setLoading(false));
+		} catch (error) {
 			setIsSuccess(false);
-			setMessage(error?.message || 'Error creating account');
+			setMessage('Error signing in with Google');
 		} finally {
 			setLoading(false);
 		}
 	};
 
-	const handleGoogleSignUp = async () => {
-		try {
-			setLoading(true);
-			setMessage('');
-			setIsSuccess(false);
-			const response: any = await signInOauth();
-			console.log('Google signup response:', response);
-
-			if (response?.status === 200) {
-				setIsSuccess(true);
-				setMessage('Signed in with Google successfully');
-				router.push('/(tabs)');
-			} else {
-				setMessage(response?.error || 'Google sign up failed');
-			}
-		} catch (error: any) {
-			setIsSuccess(false);
-			setMessage(error?.message || 'Google sign up failed');
-		} finally {
-			setLoading(false);
-		}
+	const handleGoogleError = (message: string) => {
+		setLoading(false);
+		setIsSuccess(false);
+		setMessage(message);
 	};
 
 	return (
@@ -228,10 +253,11 @@ export default function SignUp() {
 						<View style={styles.orLine} />
 					</View>
 
-					<TouchableOpacity style={styles.socialButton} onPress={handleGoogleSignUp} activeOpacity={0.7}>
-						<Image source={require('@/assets/Google.svg.webp')} style={styles.googleIcon} />
-						<Text style={styles.socialText}>Continue with Google</Text>
-					</TouchableOpacity>
+					<ContinueWithGoogle
+						onSuccess={handleGoogleSuccess}
+						onError={handleGoogleError}
+						disabled={loading}
+					/>
 
 					<Text style={styles.footerText}>
 						Already have an account?{' '}
