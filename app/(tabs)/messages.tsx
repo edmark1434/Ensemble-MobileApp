@@ -1,7 +1,9 @@
 import { AppTitle } from '@/components/app-title';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useMemo, useState } from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
+import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View, Image, Animated } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import FloatingNavBar from '@/components/FloatingNavBar';
 
 type GroupVisibility = 'public' | 'private';
 
@@ -36,7 +38,7 @@ const seedGroups: ForumGroup[] = [
     id: 'g1',
     title: 'Editing Tips',
     description: 'Share export workflows, timeline tricks, and client delivery best practices.',
-    previewImage: 'https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=1200&q=80',
+    previewImage: 'https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=400&h=200&q=80',
     visibility: 'public',
     members: 1280,
     joined: true,
@@ -45,7 +47,7 @@ const seedGroups: ForumGroup[] = [
     id: 'g2',
     title: 'LUT Lab',
     description: 'LUT experiments, color matching, and film emulation looks.',
-    previewImage: 'https://images.unsplash.com/photo-1518773553398-650c184e0bb3?auto=format&fit=crop&w=1200&q=80',
+    previewImage: 'https://images.unsplash.com/photo-1518773553398-650c184e0bb3?auto=format&fit=crop&w=400&h=200&q=80',
     visibility: 'public',
     members: 842,
     joined: false,
@@ -54,7 +56,7 @@ const seedGroups: ForumGroup[] = [
     id: 'g3',
     title: 'Client Safe Reviews',
     description: 'Private group for feedback rounds, approvals, and delivery notes.',
-    previewImage: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80',
+    previewImage: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=400&h=200&q=80',
     visibility: 'private',
     members: 57,
     joined: false,
@@ -111,6 +113,11 @@ export default function MessagesScreen() {
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [searchGroup, setSearchGroup] = useState('');
 
+  // Animation values
+  const pageFadeAnim = useRef(new Animated.Value(0)).current;
+  const pageSlideAnim = useRef(new Animated.Value(50)).current;
+  const pageScaleAnim = useRef(new Animated.Value(0.95)).current;
+
   const selectedGroup = groups.find((group) => group.id === selectedGroupId) ?? groups[0];
 
   const filteredGroups = useMemo(() => {
@@ -129,6 +136,58 @@ export default function MessagesScreen() {
     [posts, selectedGroup.id]
   );
 
+  // Animate page entrance
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(pageFadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(pageSlideAnim, {
+        toValue: 0,
+        tension: 80,
+        friction: 10,
+        useNativeDriver: true,
+      }),
+      Animated.spring(pageScaleAnim, {
+        toValue: 1,
+        tension: 80,
+        friction: 10,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  // Re-animate when page comes into focus (from nav bar)
+  useFocusEffect(
+    useCallback(() => {
+      pageFadeAnim.setValue(0);
+      pageSlideAnim.setValue(50);
+      pageScaleAnim.setValue(0.95);
+
+      Animated.parallel([
+        Animated.timing(pageFadeAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.spring(pageSlideAnim, {
+          toValue: 0,
+          tension: 80,
+          friction: 10,
+          useNativeDriver: true,
+        }),
+        Animated.spring(pageScaleAnim, {
+          toValue: 1,
+          tension: 80,
+          friction: 10,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, [])
+  );
+
   const handleCreateGroup = () => {
     if (!groupTitle.trim() || !groupDescription.trim()) return;
 
@@ -136,7 +195,7 @@ export default function MessagesScreen() {
       id: `g-${Date.now()}`,
       title: groupTitle.trim(),
       description: groupDescription.trim(),
-      previewImage: groupPreviewImage.trim() || 'https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=1200&q=80',
+      previewImage: groupPreviewImage.trim() || 'https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=400&h=200&q=80',
       visibility: groupVisibility,
       members: 1,
       joined: true,
@@ -220,203 +279,227 @@ export default function MessagesScreen() {
     setCommentDrafts((prev) => ({ ...prev, [postId]: '' }));
   };
 
-  return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.header}>
-        <AppTitle size="sm" />
-        <View style={styles.headerActions}>
-          {mode !== 'groups' ? (
-            <Pressable style={styles.iconButton} onPress={() => setMode('groups')}>
-              <MaterialIcons name="arrow-back" size={18} color="#DCE6F4" />
-            </Pressable>
-          ) : null}
-          <Pressable style={styles.iconButton} onPress={() => setMode('create')}>
-            <MaterialIcons name="add" size={18} color="#DCE6F4" />
-          </Pressable>
-        </View>
-      </View>
-
-      {mode === 'groups' ? (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-          <Text style={styles.sectionTitle}>Group Forums</Text>
-          <View style={styles.searchWrap}>
-            <MaterialIcons name="search" size={18} color="#718099" />
-            <TextInput
-              value={searchGroup}
-              onChangeText={setSearchGroup}
-              placeholder="Search groups"
-              placeholderTextColor="#718099"
-              style={styles.searchInput}
-            />
+  // @ts-ignore
+    return (
+    <Animated.View
+      style={[
+        styles.screen,
+        {
+          opacity: pageFadeAnim,
+          transform: [
+            { translateY: pageSlideAnim },
+            { scale: pageScaleAnim }
+          ],
+        }
+      ]}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <View>
+            <AppTitle size="sm" />
           </View>
-
-          {filteredGroups.map((group) => (
-            <Pressable key={group.id} style={styles.groupCard} onPress={() => handleOpenGroup(group.id)}>
-              <View style={styles.groupPreviewWrap}>
-                <Text style={styles.groupPreviewText}>{group.previewImage}</Text>
-              </View>
-
-              <View style={styles.groupBody}>
-                <View style={styles.groupTopRow}>
-                  <Text style={styles.groupTitle}>{group.title}</Text>
-                  <View style={styles.visibilityPill}>
-                    <Text style={styles.visibilityText}>{group.visibility}</Text>
-                  </View>
-                </View>
-                <Text style={styles.groupDescription}>{group.description}</Text>
-                <View style={styles.groupBottomRow}>
-                  <Text style={styles.groupMembers}>{group.members} members</Text>
-                  {group.joined ? (
-                    <Pressable style={styles.joinedButton} onPress={() => setMode('feed')}>
-                      <Text style={styles.joinedButtonText}>Open feed</Text>
-                    </Pressable>
-                  ) : (
-                    <Pressable style={styles.joinButton} onPress={() => handleJoinGroup(group.id)}>
-                      <Text style={styles.joinButtonText}>Join</Text>
-                    </Pressable>
-                  )}
-                </View>
-              </View>
-            </Pressable>
-          ))}
-        </ScrollView>
-      ) : null}
-
-      {mode === 'create' ? (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-          <Text style={styles.sectionTitle}>Create Group Forum</Text>
-
-          <TextInput
-            value={groupPreviewImage}
-            onChangeText={setGroupPreviewImage}
-            placeholder="Preview image URL"
-            placeholderTextColor="#718099"
-            style={styles.input}
-          />
-          <TextInput
-            value={groupTitle}
-            onChangeText={setGroupTitle}
-            placeholder="Title"
-            placeholderTextColor="#718099"
-            style={styles.input}
-          />
-          <TextInput
-            value={groupDescription}
-            onChangeText={setGroupDescription}
-            placeholder="Description"
-            placeholderTextColor="#718099"
-            style={[styles.input, styles.textArea]}
-            multiline
-          />
-
-          <Text style={styles.fieldLabel}>Visibility</Text>
-          <View style={styles.visibilityRow}>
-            <Pressable
-              style={[styles.visibilityOption, groupVisibility === 'public' && styles.visibilityOptionActive]}
-              onPress={() => setGroupVisibility('public')}
-            >
-              <Text style={[styles.visibilityOptionText, groupVisibility === 'public' && styles.visibilityOptionTextActive]}>
-                Public
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.visibilityOption, groupVisibility === 'private' && styles.visibilityOptionActive]}
-              onPress={() => setGroupVisibility('private')}
-            >
-              <Text style={[styles.visibilityOptionText, groupVisibility === 'private' && styles.visibilityOptionTextActive]}>
-                Private
-              </Text>
-            </Pressable>
-          </View>
-
-          <Pressable style={styles.primaryButton} onPress={handleCreateGroup}>
-            <Text style={styles.primaryButtonText}>Create forum</Text>
-          </Pressable>
-        </ScrollView>
-      ) : null}
-
-      {mode === 'feed' ? (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-          <View style={styles.feedHeader}>
-            <View>
-              <Text style={styles.sectionTitle}>{selectedGroup.title}</Text>
-              <Text style={styles.feedSub}>{selectedGroup.visibility} • {selectedGroup.members} members</Text>
-            </View>
-            {!selectedGroup.joined ? (
-              <Pressable style={styles.joinButton} onPress={() => handleJoinGroup(selectedGroup.id)}>
-                <Text style={styles.joinButtonText}>Join</Text>
+          <View style={styles.headerActions}>
+            {mode !== 'groups' ? (
+              <Pressable style={styles.iconButton} onPress={() => setMode('groups')}>
+                <MaterialIcons name="arrow-back" size={18} color="#DCE6F4" />
               </Pressable>
             ) : null}
+            <Pressable style={styles.iconButton} onPress={() => setMode('create')}>
+              <MaterialIcons name="add" size={18} color="#DCE6F4" />
+            </Pressable>
           </View>
+        </View>
 
-          {selectedGroup.joined ? (
-            <View style={styles.postComposer}>
+        {/* Page Title */}
+        <Text style={styles.title}>Forums</Text>
+
+        {mode === 'groups' ? (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+            <Text style={styles.sectionTitle}>Group Forums</Text>
+            <View style={styles.searchWrap}>
+              <MaterialIcons name="search" size={18} color="#718099" />
               <TextInput
-                value={postInput}
-                onChangeText={setPostInput}
-                placeholder="Write a post to this forum..."
+                value={searchGroup}
+                onChangeText={setSearchGroup}
+                placeholder="Search groups"
                 placeholderTextColor="#718099"
-                style={[styles.input, styles.textArea]}
-                multiline
+                style={styles.searchInput}
               />
-              <Pressable style={styles.primaryButton} onPress={handleCreatePost}>
-                <Text style={styles.primaryButtonText}>Post</Text>
+            </View>
+
+            {filteredGroups.map((group) => (
+              <Pressable key={group.id} style={styles.groupCard} onPress={() => handleOpenGroup(group.id)}>
+                <Image
+                  source={{ uri: group.previewImage }}
+                  style={styles.groupPreviewImage}
+                  // @ts-ignore
+                  contentFit="cover"
+                />
+                <View style={styles.groupBody}>
+                  <View style={styles.groupTopRow}>
+                    <Text style={styles.groupTitle}>{group.title}</Text>
+                    <View style={styles.visibilityPill}>
+                      <Text style={styles.visibilityText}>{group.visibility}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.groupDescription}>{group.description}</Text>
+                  <View style={styles.groupBottomRow}>
+                    <Text style={styles.groupMembers}>{group.members} members</Text>
+                    {group.joined ? (
+                      <Pressable style={styles.joinedButton} onPress={() => setMode('feed')}>
+                        <Text style={styles.joinedButtonText}>Open feed</Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable style={styles.joinButton} onPress={() => handleJoinGroup(group.id)}>
+                        <Text style={styles.joinButtonText}>Join</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null}
+
+        {mode === 'create' ? (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+            <Text style={styles.sectionTitle}>Create Group Forum</Text>
+
+            <TextInput
+              value={groupPreviewImage}
+              onChangeText={setGroupPreviewImage}
+              placeholder="Preview image URL (optional)"
+              placeholderTextColor="#718099"
+              style={styles.input}
+            />
+            <TextInput
+              value={groupTitle}
+              onChangeText={setGroupTitle}
+              placeholder="Title"
+              placeholderTextColor="#718099"
+              style={styles.input}
+            />
+            <TextInput
+              value={groupDescription}
+              onChangeText={setGroupDescription}
+              placeholder="Description"
+              placeholderTextColor="#718099"
+              style={[styles.input, styles.textArea]}
+              multiline
+            />
+
+            <Text style={styles.fieldLabel}>Visibility</Text>
+            <View style={styles.visibilityRow}>
+              <Pressable
+                style={[styles.visibilityOption, groupVisibility === 'public' && styles.visibilityOptionActive]}
+                onPress={() => setGroupVisibility('public')}
+              >
+                <Text style={[styles.visibilityOptionText, groupVisibility === 'public' && styles.visibilityOptionTextActive]}>
+                  Public
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.visibilityOption, groupVisibility === 'private' && styles.visibilityOptionActive]}
+                onPress={() => setGroupVisibility('private')}
+              >
+                <Text style={[styles.visibilityOptionText, groupVisibility === 'private' && styles.visibilityOptionTextActive]}>
+                  Private
+                </Text>
               </Pressable>
             </View>
-          ) : (
-            <View style={styles.lockedBox}>
-              <MaterialIcons name="lock-outline" size={18} color="#15C8FF" />
-              <Text style={styles.lockedText}>Join this forum to create posts and comments.</Text>
-            </View>
-          )}
 
-          {groupPosts.map((post) => (
-            <View key={post.id} style={styles.postCard}>
-              <Text style={styles.postAuthor}>{post.author}</Text>
-              <Text style={styles.postContent}>{post.content}</Text>
+            <Pressable style={styles.primaryButton} onPress={handleCreateGroup}>
+              <Text style={styles.primaryButtonText}>Create forum</Text>
+            </Pressable>
+          </ScrollView>
+        ) : null}
 
-              <View style={styles.postActions}>
-                <Pressable style={styles.actionBtn} onPress={() => handleToggleLike(post.id)}>
-                  <MaterialIcons
-                    name={post.likedByMe ? 'favorite' : 'favorite-border'}
-                    size={16}
-                    color={post.likedByMe ? '#15C8FF' : '#8A93A3'}
-                  />
-                  <Text style={styles.actionText}>{post.likes}</Text>
-                </Pressable>
-
-                <View style={styles.actionBtn}>
-                  <MaterialIcons name="chat-bubble-outline" size={16} color="#8A93A3" />
-                  <Text style={styles.actionText}>{post.comments.length}</Text>
-                </View>
+        {mode === 'feed' ? (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+            <View style={styles.feedHeader}>
+              <View>
+                <Text style={styles.sectionTitle}>{selectedGroup.title}</Text>
+                <Text style={styles.feedSub}>{selectedGroup.visibility} • {selectedGroup.members} members</Text>
               </View>
-
-              {post.comments.map((comment) => (
-                <View key={comment.id} style={styles.commentItem}>
-                  <Text style={styles.commentAuthor}>{comment.author}</Text>
-                  <Text style={styles.commentText}>{comment.text}</Text>
-                </View>
-              ))}
-
-              {selectedGroup.joined ? (
-                <View style={styles.commentComposer}>
-                  <TextInput
-                    value={commentDrafts[post.id] ?? ''}
-                    onChangeText={(value) => setCommentDrafts((prev) => ({ ...prev, [post.id]: value }))}
-                    placeholder="Add a comment"
-                    placeholderTextColor="#718099"
-                    style={styles.commentInput}
-                  />
-                  <Pressable style={styles.commentSendBtn} onPress={() => handleAddComment(post.id)}>
-                    <MaterialIcons name="send" size={14} color="#041117" />
-                  </Pressable>
-                </View>
+              {!selectedGroup.joined ? (
+                <Pressable style={styles.joinButton} onPress={() => handleJoinGroup(selectedGroup.id)}>
+                  <Text style={styles.joinButtonText}>Join</Text>
+                </Pressable>
               ) : null}
             </View>
-          ))}
-        </ScrollView>
-      ) : null}
-    </SafeAreaView>
+
+            {selectedGroup.joined ? (
+              <View style={styles.postComposer}>
+                <TextInput
+                  value={postInput}
+                  onChangeText={setPostInput}
+                  placeholder="Write a post to this forum..."
+                  placeholderTextColor="#718099"
+                  style={[styles.input, styles.textArea]}
+                  multiline
+                />
+                <Pressable style={styles.primaryButton} onPress={handleCreatePost}>
+                  <Text style={styles.primaryButtonText}>Post</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.lockedBox}>
+                <MaterialIcons name="lock-outline" size={18} color="#15C8FF" />
+                <Text style={styles.lockedText}>Join this forum to create posts and comments.</Text>
+              </View>
+            )}
+
+            {groupPosts.map((post) => (
+              <View key={post.id} style={styles.postCard}>
+                <Text style={styles.postAuthor}>{post.author}</Text>
+                <Text style={styles.postContent}>{post.content}</Text>
+
+                <View style={styles.postActions}>
+                  <Pressable style={styles.actionBtn} onPress={() => handleToggleLike(post.id)}>
+                    <MaterialIcons
+                      name={post.likedByMe ? 'favorite' : 'favorite-border'}
+                      size={16}
+                      color={post.likedByMe ? '#15C8FF' : '#8A93A3'}
+                    />
+                    <Text style={styles.actionText}>{post.likes}</Text>
+                  </Pressable>
+
+                  <View style={styles.actionBtn}>
+                    <MaterialIcons name="chat-bubble-outline" size={16} color="#8A93A3" />
+                    <Text style={styles.actionText}>{post.comments.length}</Text>
+                  </View>
+                </View>
+
+                {post.comments.map((comment) => (
+                  <View key={comment.id} style={styles.commentItem}>
+                    <Text style={styles.commentAuthor}>{comment.author}</Text>
+                    <Text style={styles.commentText}>{comment.text}</Text>
+                  </View>
+                ))}
+
+                {selectedGroup.joined ? (
+                  <View style={styles.commentComposer}>
+                    <TextInput
+                      value={commentDrafts[post.id] ?? ''}
+                      onChangeText={(value) => setCommentDrafts((prev) => ({ ...prev, [post.id]: value }))}
+                      placeholder="Add a comment"
+                      placeholderTextColor="#718099"
+                      style={styles.commentInput}
+                    />
+                    <Pressable style={styles.commentSendBtn} onPress={() => handleAddComment(post.id)}>
+                      <MaterialIcons name="send" size={14} color="#041117" />
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            ))}
+          </ScrollView>
+        ) : null}
+      </SafeAreaView>
+
+      {/* Floating Navigation Bar */}
+      <FloatingNavBar />
+    </Animated.View>
   );
 }
 
@@ -424,14 +507,25 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#090B10',
-    paddingHorizontal: 16,
-    paddingTop: 12,
+  },
+  safeArea: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  title: {
+    color: '#F4F8FF',
+    fontSize: 28,
+    fontWeight: '900',
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
   },
   headerActions: {
     flexDirection: 'row',
@@ -448,13 +542,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   content: {
-    paddingBottom: 110,
+    paddingBottom: 100,
+    paddingHorizontal: 16,
   },
   sectionTitle: {
     color: '#F4F8FF',
     fontSize: 18,
     fontWeight: '800',
     marginBottom: 12,
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
   },
   searchWrap: {
     backgroundColor: '#11151C',
@@ -472,6 +568,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#F4F8FF',
     fontSize: 13,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
   groupCard: {
     backgroundColor: '#11151C',
@@ -481,17 +578,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     overflow: 'hidden',
   },
-  groupPreviewWrap: {
+  groupPreviewImage: {
+    width: '100%',
+    height: 120,
     backgroundColor: '#0E131A',
-    borderBottomWidth: 1,
-    borderBottomColor: '#1B2230',
-    minHeight: 42,
-    paddingHorizontal: 12,
-    justifyContent: 'center',
-  },
-  groupPreviewText: {
-    color: '#8A93A3',
-    fontSize: 11,
   },
   groupBody: {
     padding: 12,
@@ -508,6 +598,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     flex: 1,
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
   },
   visibilityPill: {
     backgroundColor: '#0E2230',
@@ -520,12 +611,14 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     textTransform: 'uppercase',
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   groupDescription: {
     color: '#8A93A3',
     fontSize: 12,
     lineHeight: 18,
     marginBottom: 10,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
   groupBottomRow: {
     flexDirection: 'row',
@@ -535,6 +628,7 @@ const styles = StyleSheet.create({
   groupMembers: {
     color: '#718099',
     fontSize: 11,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
   joinButton: {
     backgroundColor: '#15C8FF',
@@ -546,6 +640,7 @@ const styles = StyleSheet.create({
     color: '#041117',
     fontSize: 12,
     fontWeight: '800',
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
   },
   joinedButton: {
     backgroundColor: '#0E2230',
@@ -557,6 +652,7 @@ const styles = StyleSheet.create({
     color: '#15C8FF',
     fontSize: 12,
     fontWeight: '800',
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
   },
   input: {
     backgroundColor: '#11151C',
@@ -568,6 +664,7 @@ const styles = StyleSheet.create({
     color: '#F4F8FF',
     fontSize: 13,
     marginBottom: 10,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
   textArea: {
     minHeight: 90,
@@ -579,6 +676,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 8,
     marginTop: 2,
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   visibilityRow: {
     flexDirection: 'row',
@@ -602,6 +700,7 @@ const styles = StyleSheet.create({
     color: '#8A93A3',
     fontSize: 12,
     fontWeight: '700',
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   visibilityOptionTextActive: {
     color: '#15C8FF',
@@ -617,6 +716,7 @@ const styles = StyleSheet.create({
     color: '#041117',
     fontWeight: '800',
     fontSize: 13,
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
   },
   feedHeader: {
     flexDirection: 'row',
@@ -627,6 +727,7 @@ const styles = StyleSheet.create({
   feedSub: {
     color: '#8A93A3',
     fontSize: 12,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
   postComposer: {
     marginBottom: 12,
@@ -646,6 +747,7 @@ const styles = StyleSheet.create({
     color: '#8A93A3',
     fontSize: 12,
     flex: 1,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
   postCard: {
     backgroundColor: '#11151C',
@@ -660,12 +762,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     marginBottom: 6,
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   postContent: {
     color: '#F4F8FF',
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 10,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
   postActions: {
     flexDirection: 'row',
@@ -680,6 +784,7 @@ const styles = StyleSheet.create({
   actionText: {
     color: '#8A93A3',
     fontSize: 12,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
   commentItem: {
     backgroundColor: '#0E131A',
@@ -692,11 +797,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     marginBottom: 4,
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   commentText: {
     color: '#D8E0EE',
     fontSize: 12,
     lineHeight: 16,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
   commentComposer: {
     flexDirection: 'row',
@@ -714,6 +821,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     paddingHorizontal: 10,
     paddingVertical: 9,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
   commentSendBtn: {
     width: 30,
