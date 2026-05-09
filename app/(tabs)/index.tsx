@@ -333,11 +333,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     letterSpacing: 0.2,
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
   },
   greeting: {
     marginTop: 4,
     color: '#7E8798',
     fontSize: 12,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
   headerActions: {
     flexDirection: 'row',
@@ -382,6 +384,7 @@ const styles = StyleSheet.create({
     color: '#DDE6F5',
     fontSize: 11,
     fontWeight: '700',
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   sectionHeader: {
     marginTop: 8,
@@ -394,11 +397,13 @@ const styles = StyleSheet.create({
     color: '#F3F7FF',
     fontSize: 15,
     fontWeight: '700',
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   sectionAction: {
     color: '#00D1FF',
     fontSize: 11,
     fontWeight: '700',
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   horizontalList: {
     paddingRight: 4,
@@ -423,10 +428,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     marginBottom: 4,
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   projectSubtitle: {
     color: '#7E8798',
     fontSize: 11,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
   badge: {
     backgroundColor: '#0D3341',
@@ -438,6 +445,7 @@ const styles = StyleSheet.create({
     color: '#63E8FF',
     fontSize: 10,
     fontWeight: '800',
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
   },
   progressMeta: {
     flexDirection: 'row',
@@ -447,11 +455,13 @@ const styles = StyleSheet.create({
   progressLabel: {
     color: '#95A0B3',
     fontSize: 11,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
   progressPercent: {
     color: '#F4F8FF',
     fontSize: 11,
     fontWeight: '700',
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   progressTrack: {
     height: 5,
@@ -482,6 +492,7 @@ const styles = StyleSheet.create({
     color: '#041117',
     fontSize: 10,
     fontWeight: '800',
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
   },
   assetCard: {
     width: 170,
@@ -504,16 +515,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     marginBottom: 4,
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   assetMeta: {
     color: '#7E8798',
     fontSize: 11,
     marginBottom: 10,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
   assetPrice: {
     color: '#00D1FF',
     fontSize: 12,
     fontWeight: '800',
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
   },
   gigsList: {
     gap: 10,
@@ -544,17 +558,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     marginBottom: 4,
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   gigDetail: {
     color: '#7E8798',
     fontSize: 11,
     lineHeight: 15,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
   gigRate: {
     color: '#00D1FF',
     fontSize: 12,
     fontWeight: '800',
     marginLeft: 12,
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
   },
   communityCard: {
     width: 170,
@@ -577,9 +594,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     marginBottom: 3,
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   communityTag: {
     color: '#7E8798',
     fontSize: 11,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
 });
