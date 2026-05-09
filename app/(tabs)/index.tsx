@@ -3,8 +3,11 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useMemo } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useRef, useEffect, useCallback } from 'react';
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View, SafeAreaView, Animated } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import FloatingNavBar from '@/components/FloatingNavBar';
 
 type Project = {
   id: string;
@@ -149,137 +152,230 @@ const quickActions = [
 export default function HomeScreen() {
   const memberColors = useMemo(() => ['#00D1FF', '#F4C95D', '#FF6B6B', '#6BE39A'], []);
 
+  // Animation values
+  const pageFadeAnim = useRef(new Animated.Value(0)).current;
+  const pageSlideAnim = useRef(new Animated.Value(50)).current;
+  const pageScaleAnim = useRef(new Animated.Value(0.95)).current;
+
+  // Animate page entrance
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(pageFadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(pageSlideAnim, {
+        toValue: 0,
+        tension: 80,
+        friction: 10,
+        useNativeDriver: true,
+      }),
+      Animated.spring(pageScaleAnim, {
+        toValue: 1,
+        tension: 80,
+        friction: 10,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  // Re-animate when page comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      pageFadeAnim.setValue(0);
+      pageSlideAnim.setValue(50);
+      pageScaleAnim.setValue(0.95);
+
+      Animated.parallel([
+        Animated.timing(pageFadeAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.spring(pageSlideAnim, {
+          toValue: 0,
+          tension: 80,
+          friction: 10,
+          useNativeDriver: true,
+        }),
+        Animated.spring(pageScaleAnim, {
+          toValue: 1,
+          tension: 80,
+          friction: 10,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, [])
+  );
+
   return (
-    <View style={styles.screen}>
+    <Animated.View
+      style={[
+        styles.screen,
+        {
+          opacity: pageFadeAnim,
+          transform: [
+            { translateY: pageSlideAnim },
+            { scale: pageScaleAnim }
+          ],
+        }
+      ]}
+    >
       <StatusBar style="light" />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <View style={styles.glowTopLeft} />
-        <View style={styles.glowTopRight} />
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+          <View style={styles.glowTopLeft} />
+          <View style={styles.glowTopRight} />
 
-        <View style={styles.header}>
-          <View>
-            <AppTitle size="sm" />
-            <Text style={styles.greeting}>Creative workbench for your studio flow</Text>
-          </View>
-
-          <View style={styles.headerActions}>
-            <Pressable style={styles.iconButton} onPress={() => router.push('/modal')}>
-              <MaterialIcons name="notifications-none" size={20} color="#E7F2FF" />
-            </Pressable>
-            <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80' }}
-              style={styles.avatar}
-            />
-          </View>
-        </View>
-
-        <View style={styles.searchRow}>
-          {quickActions.map((action) => (
-            <Pressable key={action.id} style={styles.searchChip} onPress={() => {}}>
-              <MaterialIcons name={action.icon as any} size={16} color="#00D1FF" />
-              <Text style={styles.searchChipText}>{action.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <SectionHeader title="Active Projects" actionLabel="View all" />
-        <FlatList
-          data={activeProjects}
-          keyExtractor={(item) => item.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          renderItem={({ item, index }) => (
-            <View style={styles.projectCard}>
-              <View style={styles.projectTopRow}>
-                <View>
-                  <Text style={styles.projectTitle}>{item.title}</Text>
-                  <Text style={styles.projectSubtitle}>{item.subtitle}</Text>
-                </View>
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{item.badge}</Text>
-                </View>
-              </View>
-
-              <View style={styles.progressMeta}>
-                <Text style={styles.progressLabel}>Progress</Text>
-                <Text style={styles.progressPercent}>{item.progress}%</Text>
-              </View>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${item.progress}%` }]} />
-              </View>
-
-              <View style={styles.membersRow}>
-                {item.members.map((member, memberIndex) => (
-                  <View
-                    key={`${item.id}-${member}`}
-                    style={[
-                      styles.memberBubble,
-                      { backgroundColor: memberColors[(index + memberIndex) % memberColors.length] },
-                    ]}
-                  >
-                    <Text style={styles.memberText}>{member}</Text>
-                  </View>
-                ))}
-              </View>
+          {/* Header */}
+          <View style={styles.header}>
+            <View>
+              <AppTitle size="sm" />
+              <Text style={styles.greeting}>Creative workbench for your studio flow</Text>
             </View>
-          )}
-        />
+            <View style={styles.headerActions}>
+              <Pressable style={styles.iconButton} onPress={() => router.push('/')}>
+                <MaterialIcons name="notifications-none" size={20} color="#E7F2FF" />
+              </Pressable>
+              <Image
+                source={{ uri: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80' }}
+                style={styles.avatar}
+              />
+            </View>
+          </View>
 
-        <SectionHeader title="Trending Assets" actionLabel="Explore" />
-        <FlatList
-          data={trendingAssets}
-          keyExtractor={(item) => item.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          renderItem={({ item }) => (
-            <Pressable style={styles.assetCard} onPress={() => {}}>
-              <Image source={{ uri: item.preview }} style={styles.assetPreview} />
-              <View style={styles.assetBody}>
-                <Text style={styles.assetName}>{item.name}</Text>
-                <Text style={styles.assetMeta}>{item.category}</Text>
-                <Text style={styles.assetPrice}>{item.price}</Text>
-              </View>
-            </Pressable>
-          )}
-        />
+          {/* Welcome Banner */}
+          <LinearGradient
+            colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.03)', 'transparent']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.welcomeCard}
+          >
+            <Text style={styles.welcomeTitle}>Welcome, User!</Text>
+            <Text style={styles.welcomeSubtitle}>Your Complete Video Editing Ecosystem</Text>
+            <Text style={styles.welcomeDescription}>
+              Find job posts or services, buy assets, collaborate and connect with talented video editors or clients.
+            </Text>
+            <View style={styles.welcomeDivider} />
+            <View style={styles.welcomeDots}>
+              <View style={[styles.dot, styles.dotCyan]} />
+              <View style={[styles.dot, styles.dotYellow]} />
+              <View style={[styles.dot, styles.dotPurple]} />
+            </View>
+          </LinearGradient>
 
-        <SectionHeader title="Latest Gigs" actionLabel="Browse" />
-        <View style={styles.gigsList}>
-          {latestGigs.map((gig) => (
-            <Pressable key={gig.id} style={styles.gigCard} onPress={() => {}}>
-              <View style={styles.gigIconWrap}>
-                <MaterialIcons name={gig.icon as any} size={22} color="#00D1FF" />
-              </View>
-              <View style={styles.gigBody}>
-                <Text style={styles.gigTitle}>{gig.title}</Text>
-                <Text style={styles.gigDetail}>{gig.detail}</Text>
-              </View>
-              <Text style={styles.gigRate}>{gig.rate}</Text>
-            </Pressable>
-          ))}
-        </View>
+          <View style={styles.searchRow}>
+            {quickActions.map((action) => (
+              <Pressable key={action.id} style={styles.searchChip} onPress={() => {}}>
+                <MaterialIcons name={action.icon as any} size={16} color="#00D1FF" />
+                <Text style={styles.searchChipText}>{action.label}</Text>
+              </Pressable>
+            ))}
+          </View>
 
-        <SectionHeader title="Community Picks" actionLabel="More" />
-        <FlatList
-          data={communityPicks}
-          keyExtractor={(item) => item.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          renderItem={({ item }) => (
-            <Pressable style={styles.communityCard} onPress={() => {}}>
-              <Image source={{ uri: item.preview }} style={styles.communityPreview} />
-              <View style={styles.communityFooter}>
-                <Text style={styles.communityName}>{item.name}</Text>
-                <Text style={styles.communityTag}>{item.tag}</Text>
+          <SectionHeader title="Active Projects" actionLabel="View all" />
+          <FlatList
+            data={activeProjects}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalList}
+            renderItem={({ item, index }) => (
+              <View style={styles.projectCard}>
+                <View style={styles.projectTopRow}>
+                  <View>
+                    <Text style={styles.projectTitle}>{item.title}</Text>
+                    <Text style={styles.projectSubtitle}>{item.subtitle}</Text>
+                  </View>
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{item.badge}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.progressMeta}>
+                  <Text style={styles.progressLabel}>Progress</Text>
+                  <Text style={styles.progressPercent}>{item.progress}%</Text>
+                </View>
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: `${item.progress}%` }]} />
+                </View>
+
+                <View style={styles.membersRow}>
+                  {item.members.map((member, memberIndex) => (
+                    <View
+                      key={`${item.id}-${member}`}
+                      style={[
+                        styles.memberBubble,
+                        { backgroundColor: memberColors[(index + memberIndex) % memberColors.length] },
+                      ]}
+                    >
+                      <Text style={styles.memberText}>{member}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
-            </Pressable>
-          )}
-        />
-      </ScrollView>
-    </View>
+            )}
+          />
+
+          <SectionHeader title="Trending Assets" actionLabel="Explore" />
+          <FlatList
+            data={trendingAssets}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalList}
+            renderItem={({ item }) => (
+              <Pressable style={styles.assetCard} onPress={() => {}}>
+                <Image source={{ uri: item.preview }} style={styles.assetPreview} />
+                <View style={styles.assetBody}>
+                  <Text style={styles.assetName}>{item.name}</Text>
+                  <Text style={styles.assetMeta}>{item.category}</Text>
+                  <Text style={styles.assetPrice}>{item.price}</Text>
+                </View>
+              </Pressable>
+            )}
+          />
+
+          <SectionHeader title="Latest Gigs" actionLabel="Browse" />
+          <View style={styles.gigsList}>
+            {latestGigs.map((gig) => (
+              <Pressable key={gig.id} style={styles.gigCard} onPress={() => {}}>
+                <View style={styles.gigIconWrap}>
+                  <MaterialIcons name={gig.icon as any} size={22} color="#00D1FF" />
+                </View>
+                <View style={styles.gigBody}>
+                  <Text style={styles.gigTitle}>{gig.title}</Text>
+                  <Text style={styles.gigDetail}>{gig.detail}</Text>
+                </View>
+                <Text style={styles.gigRate}>{gig.rate}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <SectionHeader title="Community Picks" actionLabel="More" />
+          <FlatList
+            data={communityPicks}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalList}
+            renderItem={({ item }) => (
+              <Pressable style={styles.communityCard} onPress={() => {}}>
+                <Image source={{ uri: item.preview }} style={styles.communityPreview} />
+                <View style={styles.communityFooter}>
+                  <Text style={styles.communityName}>{item.name}</Text>
+                  <Text style={styles.communityTag}>{item.tag}</Text>
+                </View>
+              </Pressable>
+            )}
+          />
+        </ScrollView>
+      </SafeAreaView>
+
+      {/* Floating Navigation Bar */}
+      <FloatingNavBar />
+    </Animated.View>
   );
 }
 
@@ -299,10 +395,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#090B10',
   },
+  safeArea: {
+    flex: 1,
+  },
   content: {
     paddingTop: 18,
     paddingHorizontal: 16,
-    paddingBottom: 28,
+    paddingBottom: 100,
   },
   glowTopLeft: {
     position: 'absolute',
@@ -327,13 +426,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
-  },
-  brand: {
-    color: '#F3F7FF',
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-    fontFamily: 'PlusJakartaSans_800ExtraBold',
   },
   greeting: {
     marginTop: 4,
@@ -361,6 +453,61 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 12,
     backgroundColor: '#131923',
+  },
+  // Welcome Banner Styles
+  welcomeCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    padding: 20,
+    marginBottom: 20,
+    overflow: 'hidden',
+  },
+  welcomeTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 6,
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
+  },
+  welcomeSubtitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 10,
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+  },
+  welcomeDescription: {
+    fontSize: 12,
+    color: '#7E8798',
+    lineHeight: 18,
+    marginBottom: 16,
+    fontFamily: 'PlusJakartaSans_400Regular',
+  },
+  welcomeDivider: {
+    height: 2,
+    backgroundColor: 'rgba(0, 209, 255, 0.5)',
+    width: 50,
+    marginBottom: 10,
+    borderRadius: 1,
+  },
+  welcomeDots: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  dotCyan: {
+    backgroundColor: '#00D1FF',
+  },
+  dotYellow: {
+    backgroundColor: '#F4C95D',
+  },
+  dotPurple: {
+    backgroundColor: '#A855F7',
   },
   searchRow: {
     flexDirection: 'row',
