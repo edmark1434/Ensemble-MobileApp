@@ -21,9 +21,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
-const analytics = isBrowser ? getAnalytics(app) : null;
 const firestore = getFirestore(app);
 
-export { analytics, auth, firestore };
+export {  auth, firestore };
 
