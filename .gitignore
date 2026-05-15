@@ -47,3 +47,4 @@ google-services.json
 GoogleService-Info.plist
 .local.env
 package-lock.json
+package.json
