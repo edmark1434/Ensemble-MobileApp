@@ -1,12 +1,12 @@
 import { AppTitle } from '@/components/app-title';
 import FloatingNavBar from '@/components/FloatingNavBar';
-import { createForumGroup, getAllForumGroups, addMemberToGroup, deleteForumGroup, updateForumGroup } from '@/function/forumGroup';
+import { addMemberToGroup, createForumGroup, deleteForumGroup, getAllForumGroups, updateForumGroup } from '@/function/forumGroup';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { getAuth } from 'firebase/auth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Image, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View, Modal } from 'react-native';
+import { ActivityIndicator, Animated, Image, Modal, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 type ForumGroup = {
   id: string;
   title: string;
@@ -131,6 +131,8 @@ export default function MessagesScreen() {
   const [editDescription, setEditDescription] = useState('');
   const [editPreviewImage, setEditPreviewImage] = useState('');
   const [editTags, setEditTags] = useState<string[]>([]);
+  const [editTagInput, setEditTagInput] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [hoveredMenuItem, setHoveredMenuItem] = useState<string | null>(null);
 
   // Animation values
@@ -185,6 +187,7 @@ export default function MessagesScreen() {
   // Handlers for edit modal save
   const handleSaveEdit = async () => {
     if (!editingGroupId) return;
+    setIsSavingEdit(true);
     const data: any = {
       title: editTitle,
       description: editDescription,
@@ -199,6 +202,8 @@ export default function MessagesScreen() {
       setEditingGroupId(null);
     } catch (err) {
       console.error('Failed to update group:', err);
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -228,8 +233,10 @@ export default function MessagesScreen() {
     setGroupTags((prev) => {
       const merged = new Set(prev.map((tag) => tag.toLowerCase()));
       const updated = [...prev];
+      const MAX_TAGS = 3;
 
       nextTags.forEach((tag) => {
+        if (updated.length >= MAX_TAGS) return;
         const normalized = tag.toLowerCase();
         if (!merged.has(normalized)) {
           merged.add(normalized);
@@ -260,6 +267,53 @@ export default function MessagesScreen() {
 
   const removeTag = (tagToRemove: string) => {
     setGroupTags((prev) => prev.filter((tag) => tag !== tagToRemove));
+  };
+
+  const removeEditTag = (tagToRemove: string) => {
+    setEditTags((prev) => prev.filter((tag) => tag !== tagToRemove));
+  };
+
+  const addEditTag = (tags: string) => {
+    const MAX_TAGS = 3;
+    const normalized = tags
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0 && !editTags.includes(t));
+    setEditTags((prev) => {
+      const remaining = Math.max(0, MAX_TAGS - prev.length);
+      return [...prev, ...normalized.slice(0, remaining)];
+    });
+  };
+
+  const handleEditTagChange = (value: string) => {
+    if (value.includes(',')) {
+      const parts = value.split(',');
+      const nextInput = parts.pop() ?? '';
+      addEditTag(parts.join(','));
+      setEditTagInput(nextInput);
+      return;
+    }
+    setEditTagInput(value);
+  };
+
+  const handleEditTagSubmit = () => {
+    addEditTag(editTagInput);
+    setEditTagInput('');
+  };
+
+  const handlePickEditPreviewImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.85,
+      aspect: [16, 9],
+    });
+
+    if (!result.canceled && result.assets[0]?.uri) {
+      const filePath = result.assets[0].uri;
+      console.log('Edit image file path:', filePath);
+      setEditPreviewImage(filePath);
+    }
   };
 
   const handlePickPreviewImage = async () => {
@@ -349,8 +403,9 @@ export default function MessagesScreen() {
   const handleCreateGroup = async () => {
     const title = groupTitle.trim();
     const description = groupDescription.trim();
+    const currentUid: string = auth.currentUser?.uid ?? '';
 
-    if (!title || !description) return;
+    if (!title || !description || !currentUid) return;
 
     // Normalize tags (remove duplicates, trim, preserve original casing for display)
     const normalizedTags: string[] = [];
@@ -395,7 +450,7 @@ export default function MessagesScreen() {
       previewImage: preview,
       previewBlob,
       tags: normalizedTags,
-      members: [{ uid: auth.currentUser?.uid, role: 'admin' }],
+      members: [{ uid: currentUid, role: 'admin' }],
       joined: true,
     };
     
@@ -408,7 +463,7 @@ export default function MessagesScreen() {
         previewImage: preview,
         imageFilePath,
         tags: normalizedTags,
-        members: [{ uid: auth.currentUser?.uid, role: 'admin' }],
+        members: [{ uid: currentUid, role: 'admin' }],
         createdAt: new Date(),
       };
       await createForumGroup(groupData);
@@ -568,112 +623,214 @@ export default function MessagesScreen() {
             </View>
 
             {filteredGroups.map((group) => (
-              <Pressable key={group.id} style={styles.groupCard} onPress={() => handleOpenGroup(group.id)}>
-                <Image
-                  source={{ uri: group.previewImage }}
-                  style={styles.groupPreviewImage}
-                  resizeMode={Platform.OS === 'web' ? 'cover' : 'contain'}
-                />
-                <View style={styles.groupBody}>
-                  <View style={styles.groupTopRow}>
-                    <Text style={styles.groupTitle}>{group.title}</Text>
-                    <Pressable
-                      style={styles.menuTrigger}
-                      onPress={(e: any) => {
-                        e?.stopPropagation?.();
-                        setOpenedMenuGroupId(openedMenuGroupId === group.id ? null : group.id);
-                      }}
-                    >
-                      <MaterialIcons name="more-vert" size={20} color="#DCE6F4" />
-                    </Pressable>
-                    {openedMenuGroupId === group.id ? (
-                      <View style={styles.groupMenu} pointerEvents="box-none">
-                        <Pressable
-                          style={styles.menuItem}
-                          onPress={(e: any) => {
-                            e?.stopPropagation?.();
-                            setOpenedMenuGroupId(null);
-                            // populate edit fields and open edit modal
-                            setEditingGroupId(group.id);
-                            setEditTitle(group.title);
-                            setEditDescription(group.description);
-                            setEditPreviewImage(group.previewImage || '');
-                            setEditTags(group.tags || []);
-                            setShowEditModal(true);
-                          }}
-                        >
-                          <Text style={styles.menuItemText}>Edit group</Text>
-                        </Pressable>
-                        <Pressable
-                          style={({ pressed }) => [styles.menuItem, hoveredMenuItem === `del-${group.id}` && { backgroundColor: '#151a20' }]}
-                          onHoverIn={() => setHoveredMenuItem(`del-${group.id}`)}
-                          onHoverOut={() => setHoveredMenuItem(null)}
-                          onPress={(e: any) => {
-                            e?.stopPropagation?.();
-                            setOpenedMenuGroupId(null);
-                            setShowDeleteConfirmId(group.id);
-                          }}
-                        >
-                          <Text style={[styles.menuItemText, { color: '#FF5252' }]}>Delete group</Text>
-                        </Pressable>
+              <View key={group.id} style={styles.groupCard}>
+                <Pressable style={styles.groupOpenArea} onPress={() => handleOpenGroup(group.id)}>
+                  <Image
+                    source={{ uri: group.previewImage }}
+                    style={styles.groupPreviewImage}
+                    resizeMode={Platform.OS === 'web' ? 'cover' : 'contain'}
+                  />
+                  <View style={styles.groupBody}>
+                    <View style={styles.groupTopRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.groupTitle}>{group.title}</Text>
+                        <Text style={styles.groupCreator}>{group.description}</Text>
+                      </View>
+                      <Pressable
+                        style={({ pressed }) => [styles.menuTrigger, pressed && { opacity: 0.7 }]}
+                        onPress={(e: any) => {
+                          e?.stopPropagation?.();
+                          console.log('group options trigger pressed', group.id);
+                          setOpenedMenuGroupId(openedMenuGroupId === group.id ? null : group.id);
+                        }}
+                      >
+                        <MaterialIcons name="more-vert" size={22} color="#718099" />
+                      </Pressable>
+                    </View>
+                    {group.tags.length ? (
+                      <View style={styles.tagList}>
+                        {group.tags.slice(0, 3).map((tag) => (
+                          <View key={tag} style={styles.tagChip}>
+                            <Text style={styles.tagChipText}>#{tag}</Text>
+                          </View>
+                        ))}
                       </View>
                     ) : null}
                   </View>
-                  <Text style={styles.groupDescription}>{group.description}</Text>
-                  {group.tags.length ? (
-                    <View style={styles.tagList}>
-                      {group.tags.map((tag) => (
-                        <View key={tag} style={styles.tagChip}>
-                          <Text style={styles.tagChipText}>#{tag}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  ) : null}
-                  <View style={styles.groupBottomRow}>
-                    <Text style={styles.groupMembers}>{group.members.length} members</Text>
-                    {group.joined ? (
-                      <Pressable style={styles.joinedButton} onPress={() => setMode('feed')}>
-                        <Text style={styles.joinedButtonText}>Open feed</Text>
-                      </Pressable>
-                    ) : (
-                      <Pressable
-                        style={styles.joinButton}
-                        onPress={() => handleJoinGroup(group.id)}
-                        disabled={joiningGroupId === group.id}
-                      >
-                        {joiningGroupId === group.id ? (
-                          <ActivityIndicator size="small" color="#041117" />
-                        ) : (
-                          <Text style={styles.joinButtonText}>Join</Text>
-                        )}
-                      </Pressable>
-                    )}
+                </Pressable>
+
+                {/* Card Menu Dropdown */}
+                {openedMenuGroupId === group.id && (
+                  <View style={styles.cardDropdownMenu}>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.dropdownItem,
+                        pressed && styles.dropdownItemActive,
+                      ]}
+                      onPress={() => {
+                        console.log('edit group pressed', group.id);
+                        setOpenedMenuGroupId(null);
+                        setEditingGroupId(group.id);
+                        setEditTitle(group.title);
+                        setEditDescription(group.description);
+                        setEditPreviewImage(group.previewImage || '');
+                        setEditTags(group.tags || []);
+                        setShowEditModal(true);
+                      }}
+                    >
+                      <MaterialIcons name="edit" size={18} color="#15C8FF" />
+                      <Text style={styles.dropdownItemText}>Edit</Text>
+                    </Pressable>
+                    <View style={styles.divider} />
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.dropdownItem,
+                        pressed && styles.dropdownItemActive,
+                      ]}
+                      onPress={() => {
+                        console.log('delete group pressed', group.id);
+                        setOpenedMenuGroupId(null);
+                        setShowDeleteConfirmId(group.id);
+                      }}
+                    >
+                      <MaterialIcons name="delete-outline" size={18} color="#FF5252" />
+                      <Text style={[styles.dropdownItemText, { color: '#FF5252' }]}>Delete</Text>
+                    </Pressable>
                   </View>
+                )}
+
+                <View style={styles.groupBottomRow}>
+                  <View style={styles.memberBadge}>
+                    <MaterialIcons name="people" size={14} color="#718099" />
+                    <Text style={styles.groupMembers}>{group.members.length}</Text>
+                  </View>
+                  {group.joined ? (
+                    <Pressable style={styles.joinedButton} onPress={() => setMode('feed')}>
+                      <Text style={styles.joinedButtonText}>Open feed</Text>
+                    </Pressable>
+                  ) : (
+                    <Pressable
+                      style={styles.joinButton}
+                      onPress={() => handleJoinGroup(group.id)}
+                      disabled={joiningGroupId === group.id}
+                    >
+                      {joiningGroupId === group.id ? (
+                        <ActivityIndicator size="small" color="#041117" />
+                      ) : (
+                        <Text style={styles.joinButtonText}>Join</Text>
+                      )}
+                    </Pressable>
+                  )}
                 </View>
-              </Pressable>
+              </View>
             ))}
-            {openedMenuGroupId ? (
-              <Pressable style={styles.menuBackdrop} onPress={() => setOpenedMenuGroupId(null)} />
-            ) : null}
+
             {/* Edit Modal */}
-            <Modal visible={showEditModal} animationType="slide" transparent onRequestClose={() => setShowEditModal(false)}>
+            <Modal visible={showEditModal} animationType="fade" transparent onRequestClose={() => setShowEditModal(false)}>
               <View style={styles.modalOverlay}>
                 <View style={styles.editModalContent}>
                   <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Edit Group</Text>
-                    <Pressable onPress={() => setShowEditModal(false)}>
-                      <MaterialIcons name="close" size={22} color="#F4F8FF" />
+                    <View>
+                      <Text style={styles.modalTitle}>Edit Group</Text>
+                      <Text style={styles.modalSubtitle}>Update your group details</Text>
+                    </View>
+                    <Pressable onPress={() => setShowEditModal(false)} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
+                      <MaterialIcons name="close" size={24} color="#718099" />
                     </Pressable>
                   </View>
-                  <TextInput value={editTitle} onChangeText={setEditTitle} placeholder="Title" placeholderTextColor="#718099" style={styles.input} />
-                  <TextInput value={editDescription} onChangeText={setEditDescription} placeholder="Description" placeholderTextColor="#718099" style={[styles.input, styles.textArea]} multiline />
-                  <TextInput value={editPreviewImage} onChangeText={setEditPreviewImage} placeholder="Preview image URL" placeholderTextColor="#718099" style={styles.input} />
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <Pressable style={styles.primaryButton} onPress={handleSaveEdit}>
-                      <Text style={styles.primaryButtonText}>Save</Text>
+                  <ScrollView 
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ flexGrow: 1 }}
+                    showsVerticalScrollIndicator={false} 
+                    bounces={false}
+                    keyboardShouldPersistTaps="handled"
+                    scrollEnabled={true}
+                    nestedScrollEnabled={true}
+                  >
+                    <View style={styles.modalBody}>
+                      <View style={styles.fieldSection}>
+                        <Text style={styles.fieldLabel}>Group Name</Text>
+                        <TextInput value={editTitle} onChangeText={setEditTitle} placeholder="Enter group name" placeholderTextColor="#718099" style={styles.input} />
+                      </View>
+                      <View style={styles.fieldSection}>
+                        <Text style={styles.fieldLabel}>Description</Text>
+                        <TextInput value={editDescription} onChangeText={setEditDescription} placeholder="Describe your group" placeholderTextColor="#718099" style={[styles.input, styles.textArea]} multiline />
+                      </View>
+                      <View style={styles.fieldSection}>
+                        <Text style={styles.fieldLabel}>Preview Image</Text>
+                        <Pressable style={styles.imagePickerButton} onPress={handlePickEditPreviewImage}>
+                          <MaterialIcons name="image" size={20} color="#15C8FF" />
+                          <Text style={styles.imagePickerButtonText}>{editPreviewImage ? 'Change image' : 'Pick from library'}</Text>
+                        </Pressable>
+                        {editPreviewImage ? (
+                          <View style={styles.imagePreviewContainer}>
+                            <Image source={{ uri: editPreviewImage }} style={styles.previewThumbnail} resizeMode="cover" />
+                            <Pressable style={styles.removeImageButton} onPress={() => setEditPreviewImage('')}>
+                              <MaterialIcons name="close" size={18} color="#fff" />
+                            </Pressable>
+                          </View>
+                        ) : null}
+                      </View>
+                      <View style={styles.fieldSection}>
+                        <Text style={styles.fieldLabel}>Tags</Text>
+                        <View style={styles.tagsInputRow}>
+                          <TextInput
+                            value={editTagInput}
+                            onChangeText={handleEditTagChange}
+                            onSubmitEditing={handleEditTagSubmit}
+                            onBlur={handleEditTagSubmit}
+                            placeholder="Add tags (comma separated)"
+                            placeholderTextColor="#718099"
+                            style={[styles.tagsInput, { flex: 1 }]}
+                            returnKeyType="done"
+                            blurOnSubmit={false}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            editable={editTags.length < 3}
+                          />
+                          <Pressable 
+                            style={[styles.addTagButton, editTags.length >= 3 && { opacity: 0.5 }]} 
+                            onPress={handleEditTagSubmit}
+                            disabled={editTags.length >= 3}
+                          >
+                            <MaterialIcons name="add" size={18} color="#041117" />
+                          </Pressable>
+                        </View>
+                        {editTags.length ? (
+                          <>
+                            <View style={styles.tagList}>
+                              {editTags.map((tag) => (
+                                <Pressable key={tag} style={styles.editTagChip} onPress={() => removeEditTag(tag)}>
+                                  <Text style={styles.tagChipText}>#{tag}</Text>
+                                  <Text style={styles.tagRemove}>×</Text>
+                                </Pressable>
+                              ))}
+                            </View>
+                            <Text style={styles.tagsHint}>{editTags.length}/3 tags added</Text>
+                          </>
+                        ) : (
+                          <Text style={styles.tagsHint}>Add up to 3 tags to categorize your group</Text>
+                        )}
+                      </View>
+                    </View>
+                  </ScrollView>
+                  <View style={styles.modalFooter}>
+                    <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowEditModal(false)} disabled={isSavingEdit}>
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
                     </Pressable>
-                    <Pressable style={styles.clearButton} onPress={() => setShowEditModal(false)}>
-                      <Text style={styles.clearButtonText}>Cancel</Text>
+                    <Pressable 
+                      style={[styles.modalButton, styles.saveButton, isSavingEdit && { opacity: 0.7 }]} 
+                      onPress={handleSaveEdit}
+                      disabled={isSavingEdit}
+                    >
+                      {isSavingEdit ? (
+                        <ActivityIndicator size="small" color="#041117" />
+                      ) : (
+                        <>
+                          <MaterialIcons name="check" size={16} color="#041117" style={{ marginRight: 6 }} />
+                          <Text style={styles.saveButtonText}>Save Changes</Text>
+                        </>
+                      )}
                     </Pressable>
                   </View>
                 </View>
@@ -684,14 +841,18 @@ export default function MessagesScreen() {
             <Modal visible={!!showDeleteConfirmId} animationType="fade" transparent onRequestClose={() => setShowDeleteConfirmId(null)}>
               <View style={styles.modalOverlay}>
                 <View style={styles.confirmModalContent}>
-                  <Text style={styles.modalTitle}>Delete Group?</Text>
-                  <Text style={{ color: '#8A93A3', marginVertical: 12 }}>Are you sure you want to delete this group? This action cannot be undone.</Text>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <Pressable style={[styles.clearButton, { flex: 1 }]} onPress={() => setShowDeleteConfirmId(null)}>
-                      <Text style={styles.clearButtonText}>Cancel</Text>
+                  <View style={styles.deleteIconContainer}>
+                    <MaterialIcons name="delete-outline" size={40} color="#FF5252" />
+                  </View>
+                  <Text style={styles.confirmTitle}>Delete Group?</Text>
+                  <Text style={styles.confirmMessage}>Are you sure you want to delete this group? This action cannot be undone and all associated posts will be permanently removed.</Text>
+                  <View style={styles.modalFooter}>
+                    <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowDeleteConfirmId(null)}>
+                      <Text style={styles.cancelButtonText}>Keep Group</Text>
                     </Pressable>
-                    <Pressable style={[styles.primaryButton, { flex: 1 }]} onPress={() => showDeleteConfirmId && handleConfirmDelete(showDeleteConfirmId)}>
-                      <Text style={styles.primaryButtonText}>Delete</Text>
+                    <Pressable style={[styles.modalButton, styles.deleteButton]} onPress={() => showDeleteConfirmId && handleConfirmDelete(showDeleteConfirmId)}>
+                      <MaterialIcons name="delete" size={16} color="#fff" style={{ marginRight: 6 }} />
+                      <Text style={styles.deleteButtonText}>Delete</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -779,23 +940,31 @@ export default function MessagesScreen() {
                   blurOnSubmit={false}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  editable={groupTags.length < 3}
                 />
-                <Pressable style={styles.addTagButton} onPress={handleTagSubmit}>
+                <Pressable 
+                  style={[styles.addTagButton, groupTags.length >= 3 && { opacity: 0.5 }]} 
+                  onPress={handleTagSubmit}
+                  disabled={groupTags.length >= 3}
+                >
                   <Text style={styles.addTagButtonText}>Add</Text>
                 </Pressable>
               </View>
 
               {groupTags.length ? (
-                <View style={styles.tagList}>
-                  {groupTags.map((tag) => (
-                    <Pressable key={tag} style={styles.tagChip} onPress={() => removeTag(tag)}>
-                      <Text style={styles.tagChipText}>#{tag}</Text>
-                      <Text style={styles.tagRemove}>×</Text>
-                    </Pressable>
-                  ))}
-                </View>
+                <>
+                  <View style={styles.tagList}>
+                    {groupTags.map((tag) => (
+                      <Pressable key={tag} style={styles.tagChip} onPress={() => removeTag(tag)}>
+                        <Text style={styles.tagChipText}>#{tag}</Text>
+                        <Text style={styles.tagRemove}>×</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Text style={styles.tagsHint}>{groupTags.length}/3 tags added</Text>
+                </>
               ) : (
-                <Text style={styles.tagsHint}>Press return or tap Add to create each tag.</Text>
+                <Text style={styles.tagsHint}>Add up to 3 tags to help others find your group</Text>
               )}
             </View>
 
@@ -811,6 +980,7 @@ export default function MessagesScreen() {
               <View>
                 <Text style={styles.sectionTitle}>{selectedGroup.title}</Text>
                 <Text style={styles.feedSub}>{selectedGroup.members.length} members</Text>
+
               </View>
               {!selectedGroup.joined ? (
                 <Pressable
@@ -973,31 +1143,42 @@ const styles = StyleSheet.create({
     backgroundColor: '#11151C',
     borderWidth: 1,
     borderColor: '#1B2230',
-    borderRadius: 16,
-    marginBottom: 12,
+    borderRadius: 12,
+    marginBottom: 16,
     overflow: 'hidden',
+  },
+  groupOpenArea: {
+    width: '100%',
   },
   groupPreviewImage: {
     width: '100%',
-    height: 120,
+    height: 140,
     backgroundColor: '#0E131A',
   },
   groupBody: {
-    padding: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
   groupTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 6,
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 12,
   },
   groupTitle: {
     color: '#F4F8FF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
-    flex: 1,
+    lineHeight: 20,
     fontFamily: 'PlusJakartaSans_800ExtraBold',
+    marginBottom: 4,
+  },
+  groupCreator: {
+    color: '#718099',
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'PlusJakartaSans_400Regular',
   },
   visibilityPill: {
     backgroundColor: '#0E2230',
@@ -1012,34 +1193,22 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     fontFamily: 'PlusJakartaSans_700Bold',
   },
-  groupDescription: {
-    color: '#8A93A3',
-    fontSize: 12,
-    lineHeight: 18,
-    marginBottom: 10,
-    fontFamily: 'PlusJakartaSans_400Regular',
-  },
   tagList: {
-    marginTop: 10,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 10,
+    gap: 6,
   },
   tagChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
     backgroundColor: '#0E2230',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
   },
   tagChipText: {
     color: '#15C8FF',
     fontSize: 11,
-    fontWeight: '700',
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontWeight: '600',
+    fontFamily: 'PlusJakartaSans_600SemiBold',
   },
   tagRemove: {
     color: '#8A93A3',
@@ -1051,60 +1220,85 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#0E131A',
+  },
+  memberBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   groupMembers: {
     color: '#718099',
-    fontSize: 11,
-    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: 12,
+    fontWeight: '500',
+    fontFamily: 'PlusJakartaSans_500Medium',
   },
   joinButton: {
     backgroundColor: '#15C8FF',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    minWidth: 70,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   joinButtonText: {
     color: '#041117',
     fontSize: 12,
-    fontWeight: '800',
-    fontFamily: 'PlusJakartaSans_800ExtraBold',
+    fontWeight: '700',
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   joinedButton: {
     backgroundColor: '#0E2230',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#1B2230',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    minWidth: 90,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   joinedButtonText: {
     color: '#15C8FF',
     fontSize: 12,
-    fontWeight: '800',
-    fontFamily: 'PlusJakartaSans_800ExtraBold',
+    fontWeight: '700',
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   menuTrigger: {
-    padding: 6,
+    padding: 8,
+    marginTop: -8,
+    marginRight: -8,
   },
-  groupMenu: {
-    position: 'absolute',
-    top: 34,
-    right: 12,
+  cardDropdownMenu: {
     backgroundColor: '#0E131A',
-    borderWidth: 1,
-    borderColor: '#1B2230',
-    borderRadius: 8,
-    zIndex: 1000,
-    elevation: 20,
-    paddingVertical: 6,
-    minWidth: 140,
+    borderTopWidth: 1,
+    borderTopColor: '#0E131A',
+    paddingVertical: 4,
   },
-  menuItem: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
-  menuItemText: {
+  dropdownItemActive: {
+    backgroundColor: '#151a20',
+  },
+  dropdownItemText: {
     color: '#DCE6F4',
     fontSize: 13,
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontWeight: '500',
+    fontFamily: 'PlusJakartaSans_500Medium',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#0E131A',
+    marginHorizontal: 14,
   },
   input: {
     backgroundColor: '#11151C',
@@ -1190,39 +1384,164 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(4,17,23,0.6)',
+    backgroundColor: 'rgba(4,17,23,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
   },
   editModalContent: {
     width: '100%',
-    maxWidth: 640,
-    backgroundColor: '#0E131A',
-    borderRadius: 12,
-    padding: 16,
+    maxWidth: 500,
+    maxHeight: '80%',
+    backgroundColor: '#11151C',
+    borderRadius: 16,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#1B2230',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    display: 'flex',
+    flexDirection: 'column',
   },
   confirmModalContent: {
     width: '100%',
-    maxWidth: 420,
+    maxWidth: 380,
+    backgroundColor: '#11151C',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#1B2230',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    alignItems: 'center',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#0E131A',
+  },
+  modalTitle: {
+    color: '#F4F8FF',
+    fontSize: 18,
+    fontWeight: '800',
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    color: '#718099',
+    fontSize: 12,
+    fontWeight: '500',
+    fontFamily: 'PlusJakartaSans_500Medium',
+  },
+  modalBody: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  fieldSection: {
+    marginBottom: 18,
+  },
+  fieldLabel: {
+    color: '#D8E0EE',
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+  },
+  imagePreview: {
+    marginTop: 10,
+    borderRadius: 8,
+    overflow: 'hidden',
     backgroundColor: '#0E131A',
-    borderRadius: 12,
-    padding: 16,
+  },
+  previewThumbnail: {
+    width: '100%',
+    height: 100,
+  },
+  previewText: {
+    color: '#718099',
+    fontSize: 11,
+    paddingVertical: 6,
+    textAlign: 'center',
+    fontFamily: 'PlusJakartaSans_400Regular',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#0E131A',
+  },
+  modalButton: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#0E2230',
     borderWidth: 1,
     borderColor: '#1B2230',
   },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  modalTitle: { color: '#F4F8FF', fontSize: 16, fontWeight: '800', fontFamily: 'PlusJakartaSans_800ExtraBold' },
-  menuBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 900,
+  cancelButtonText: {
+    color: '#DCE6F4',
+    fontSize: 13,
+    fontWeight: '600',
+    fontFamily: 'PlusJakartaSans_600SemiBold',
   },
+  saveButton: {
+    backgroundColor: '#15C8FF',
+  },
+  saveButtonText: {
+    color: '#041117',
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'PlusJakartaSans_700Bold',
+  },
+  deleteButton: {
+    backgroundColor: '#FF5252',
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'PlusJakartaSans_700Bold',
+  },
+  deleteIconContainer: {
+    width: 70,
+    height: 70,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 82, 82, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  confirmTitle: {
+    color: '#F4F8FF',
+    fontSize: 18,
+    fontWeight: '800',
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
+    marginBottom: 8,
+  },
+  confirmMessage: {
+    color: '#8A93A3',
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: 20,
+    fontFamily: 'PlusJakartaSans_400Regular',
+  },
+
   uploadActions: {
     flexDirection: 'row',
     gap: 10,
@@ -1295,14 +1614,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 8,
     fontFamily: 'PlusJakartaSans_400Regular',
-  },
-  fieldLabel: {
-    color: '#D8E0EE',
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 8,
-    marginTop: 2,
-    fontFamily: 'PlusJakartaSans_700Bold',
   },
   visibilityRow: {
     flexDirection: 'row',
@@ -1457,4 +1768,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+  imagePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#0E2230',
+    borderWidth: 1,
+    borderColor: '#1B2230',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  imagePickerButtonText: {
+    color: '#15C8FF',
+    fontSize: 13,
+    fontWeight: '600',
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+  },
+  imagePreviewContainer: {
+    position: 'relative',
+    marginTop: 10,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#0E131A',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(255, 82, 82, 0.9)',
+    borderRadius: 999,
+    padding: 6,
+  },
+  editTagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0E2230',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },});
