@@ -1,23 +1,20 @@
 import { AppTitle } from '@/components/app-title';
-import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { getAuth } from 'firebase/auth';
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  Dimensions,
   Image,
-  Platform,
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-  Dimensions
+  View
 } from 'react-native';
-
 const { width, height } = Dimensions.get('window');
 
 const CAROUSEL_IMAGES = [
@@ -28,13 +25,13 @@ const CAROUSEL_IMAGES = [
 
 const CAROUSEL_INTERVAL = 4000;
 
-if (Platform.OS !== 'web') {
+
   GoogleSignin.configure({
     webClientId: process.env.WEB_CLIENT_ID,
     offlineAccess: true,
     forceCodeForRefreshToken: true,
   });
-}
+
 
 export default function GetStarted() {
   const colorScheme = useColorScheme();
@@ -72,7 +69,7 @@ export default function GetStarted() {
         useNativeDriver: true,
       }),
     ]).start();
-
+    
     // Carousel auto-play
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % CAROUSEL_IMAGES.length);
@@ -101,6 +98,18 @@ export default function GetStarted() {
     ).start();
 
     return () => clearInterval(interval);
+  }, []);
+
+  // Auth state listener must be a top-level hook effect
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        router.push('/(tabs)');
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Interpolations for floating blobs
