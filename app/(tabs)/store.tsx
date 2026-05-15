@@ -1,7 +1,7 @@
 import { AppTitle } from '@/components/app-title';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
-import {useState, useMemo, useRef, useEffect, useCallback} from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   Pressable,
   SafeAreaView,
@@ -13,10 +13,21 @@ import {
   Modal,
   FlatList,
   Animated,
-  Dimensions
+  Dimensions,
+  ActivityIndicator,
+  Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import FloatingNavBar from '@/components/FloatingNavBar';
+import * as ImagePicker from 'expo-image-picker';
+import { auth, firestore, storage } from '../../firebase';
+import {
+  collection, getDocs, addDoc, updateDoc, doc,
+  query, where, orderBy, arrayUnion, arrayRemove,
+  increment, serverTimestamp, getDoc,
+} from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -46,9 +57,13 @@ interface Asset {
   isMyAsset: boolean;
 }
 
+const ASSETS_COLLECTION = 'assets';
+const PURCHASES_COLLECTION = 'purchases';
+
 const categories: AssetType[] = ['Videos', 'Images', 'Sound', 'Elements', 'Templates'];
 
-const sampleAssets: Asset[] = [
+// -- removed hardcoded sampleAssets, data comes from Firestore --
+const _unused = [
   {
     id: '1',
     title: 'Neon Pulse LUT Pack',
@@ -182,10 +197,120 @@ export default function StoreScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('buy');
   const [selectedCategory, setSelectedCategory] = useState<AssetType | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [assets] = useState<Asset[]>(sampleAssets);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [loadingAssets, setLoadingAssets] = useState(true);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [commentInput, setCommentInput] = useState('');
   const [showAssetModal, setShowAssetModal] = useState(false);
+
+  // Upload modal state
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadCategory, setUploadCategory] = useState<AssetType>('Images');
+  const [uploadPrice, setUploadPrice] = useState('');
+  const [uploadDesc, setUploadDesc] = useState('');
+  const [uploadImageUri, setUploadImageUri] = useState<string | null>(null);
+
+  const uid = auth.currentUser?.uid ?? '';
+  const displayName = auth.currentUser?.displayName ?? auth.currentUser?.email ?? 'Unknown';
+
+  // Fetch all assets from Firestore
+  const fetchAssets = useCallback(async () => {
+    setLoadingAssets(true);
+    try {
+      const q = query(collection(firestore, ASSETS_COLLECTION), orderBy('createdAt', 'desc'));
+      const snap = await getDocs(q);
+      const purchasedSnap = uid
+        ? await getDocs(query(collection(firestore, PURCHASES_COLLECTION), where('buyerId', '==', uid)))
+        : null;
+      const purchasedIds = new Set(purchasedSnap?.docs.map(d => d.data().assetId) ?? []);
+
+      const list: Asset[] = snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          title: data.title ?? '',
+          creator: data.creatorName ?? '',
+          category: data.category ?? 'Images',
+          price: data.price ?? 0,
+          image: data.image ?? '',
+          description: data.description ?? '',
+          downloads: data.downloads ?? 0,
+          rating: data.rating ?? 0,
+          comments: data.comments ?? [],
+          isFavorited: Array.isArray(data.favoritedBy) && data.favoritedBy.includes(uid),
+          isPurchased: purchasedIds.has(d.id),
+          isMyAsset: data.creatorId === uid,
+        };
+      });
+      setAssets(list);
+    } catch (e) {
+      console.log('Fetch assets error:', e);
+    } finally {
+      setLoadingAssets(false);
+    }
+  }, [uid]);
+
+  useEffect(() => { fetchAssets(); }, [fetchAssets]);
+
+  // Pick image from library
+  const pickImage = async () => {
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+    if (!res.canceled && res.assets[0]) setUploadImageUri(res.assets[0].uri);
+  };
+
+  // Upload image to Firebase Storage and return URL
+  const uploadImage = async (uri: string): Promise<string> => {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    const storageRef = ref(storage, `asset-images/${Date.now()}`);
+    return new Promise((resolve, reject) => {
+      const task = uploadBytesResumable(storageRef, blob);
+      task.on('state_changed', null, reject, async () => {
+        resolve(await getDownloadURL(task.snapshot.ref));
+      });
+    });
+  };
+
+  // Submit new asset to Firestore
+  const handleUploadAsset = async () => {
+    if (!uploadTitle.trim() || !uploadPrice.trim()) {
+      Alert.alert('Missing fields', 'Please fill in title and price.');
+      return;
+    }
+    setUploading(true);
+    try {
+      let imageUrl = '';
+      if (uploadImageUri) imageUrl = await uploadImage(uploadImageUri);
+      await addDoc(collection(firestore, ASSETS_COLLECTION), {
+        title: uploadTitle.trim(),
+        creatorId: uid,
+        creatorName: displayName,
+        category: uploadCategory,
+        price: parseFloat(uploadPrice) || 0,
+        image: imageUrl,
+        description: uploadDesc.trim(),
+        downloads: 0,
+        rating: 0,
+        favoritedBy: [],
+        comments: [],
+        createdAt: serverTimestamp(),
+      });
+      setShowUploadModal(false);
+      setUploadTitle(''); setUploadCategory('Images'); setUploadPrice('');
+      setUploadDesc(''); setUploadImageUri(null);
+      await fetchAssets();
+      Alert.alert('Success', 'Asset uploaded!');
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // Animation values
   const pageFadeAnim = useRef(new Animated.Value(0)).current;
@@ -366,33 +491,42 @@ export default function StoreScreen() {
     }
   };
 
-  const toggleFavorite = (assetId: string) => {
-    if (selectedAsset?.id === assetId) {
-      setSelectedAsset(prev => prev ? { ...prev, isFavorited: !prev.isFavorited } : null);
-    }
+  const toggleFavorite = async (assetId: string) => {
+    if (!uid) return;
+    const asset = assets.find(a => a.id === assetId);
+    if (!asset) return;
+    const isFav = asset.isFavorited;
+    const assetRef = doc(firestore, ASSETS_COLLECTION, assetId);
+    await updateDoc(assetRef, { favoritedBy: isFav ? arrayRemove(uid) : arrayUnion(uid) });
+    setAssets(prev => prev.map(a => a.id === assetId ? { ...a, isFavorited: !isFav } : a));
+    if (selectedAsset?.id === assetId) setSelectedAsset(prev => prev ? { ...prev, isFavorited: !isFav } : null);
   };
 
-  const addComment = (assetId: string) => {
+  const addComment = async (assetId: string) => {
     if (!commentInput.trim()) return;
-
     const newComment: Comment = {
       id: Date.now().toString(),
-      user: 'you',
+      user: auth.currentUser?.displayName ?? auth.currentUser?.email ?? 'you',
       text: commentInput.trim(),
       date: new Date().toISOString().split('T')[0],
     };
-
-    if (selectedAsset?.id === assetId) {
+    const assetRef = doc(firestore, ASSETS_COLLECTION, assetId);
+    await updateDoc(assetRef, { comments: arrayUnion(newComment) });
+    if (selectedAsset?.id === assetId)
       setSelectedAsset(prev => prev ? { ...prev, comments: [...prev.comments, newComment] } : null);
-    }
-
     setCommentInput('');
   };
 
-  const purchaseAsset = (assetId: string) => {
-    if (selectedAsset?.id === assetId) {
-      setSelectedAsset(prev => prev ? { ...prev, isPurchased: true } : null);
-    }
+  const purchaseAsset = async (assetId: string) => {
+    if (!uid) return;
+    try {
+      await addDoc(collection(firestore, PURCHASES_COLLECTION), {
+        assetId, buyerId: uid, purchasedAt: serverTimestamp(),
+      });
+      await updateDoc(doc(firestore, ASSETS_COLLECTION, assetId), { downloads: increment(1) });
+      setAssets(prev => prev.map(a => a.id === assetId ? { ...a, isPurchased: true, downloads: a.downloads + 1 } : a));
+      if (selectedAsset?.id === assetId) setSelectedAsset(prev => prev ? { ...prev, isPurchased: true } : null);
+    } catch (e: any) { Alert.alert('Error', e.message); }
   };
 
   const renderAssetCard = ({ item }: { item: Asset }) => (
@@ -492,7 +626,7 @@ export default function StoreScreen() {
           <View style={styles.header}>
             <AppTitle size="sm" />
             <View style={styles.headerActions}>
-              <Pressable style={styles.iconButton}>
+              <Pressable style={styles.iconButton} onPress={() => setShowUploadModal(true)}>
                 <MaterialIcons name="upload" size={18} color="#DCE6F4" />
               </Pressable>
               <Pressable style={styles.iconButton}>
@@ -590,20 +724,27 @@ export default function StoreScreen() {
             </Text>
 
             {/* Assets Grid - 2 Columns */}
-            <FlatList
-              data={filteredAssets}
-              keyExtractor={(item) => item.id}
-              numColumns={2}
-              columnWrapperStyle={styles.assetRow}
-              scrollEnabled={false}
-              renderItem={renderAssetCard}
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <MaterialIcons name="inventory" size={48} color="#718099" />
-                  <Text style={styles.emptyText}>No assets found</Text>
-                </View>
-              }
-            />
+            {loadingAssets ? (
+              <View style={styles.emptyContainer}>
+                <ActivityIndicator size="large" color="#15C8FF" />
+                <Text style={styles.emptyText}>Loading assets...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredAssets}
+                keyExtractor={(item) => item.id}
+                numColumns={2}
+                columnWrapperStyle={styles.assetRow}
+                scrollEnabled={false}
+                renderItem={renderAssetCard}
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <MaterialIcons name="inventory" size={48} color="#718099" />
+                    <Text style={styles.emptyText}>No assets found</Text>
+                  </View>
+                }
+              />
+            )}
           </Animated.View>
         </ScrollView>
       </SafeAreaView>
@@ -730,6 +871,63 @@ export default function StoreScreen() {
                   </View>
                 </>
               )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Upload Asset Modal */}
+      <Modal visible={showUploadModal} animationType="slide" transparent onRequestClose={() => setShowUploadModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <Text style={{ color: '#F4F8FF', fontSize: 20, fontWeight: '800', fontFamily: 'PlusJakartaSans_800ExtraBold' }}>Upload Asset</Text>
+                <Pressable onPress={() => setShowUploadModal(false)}>
+                  <MaterialIcons name="close" size={24} color="#F4F8FF" />
+                </Pressable>
+              </View>
+
+              {/* Image Picker */}
+              <Pressable onPress={pickImage} style={styles.imagePicker}>
+                {uploadImageUri ? (
+                  <Image source={{ uri: uploadImageUri }} style={styles.imagePickerPreview} />
+                ) : (
+                  <View style={styles.imagePickerPlaceholder}>
+                    <MaterialIcons name="add-photo-alternate" size={36} color="#718099" />
+                    <Text style={{ color: '#718099', marginTop: 8, fontFamily: 'PlusJakartaSans_400Regular', fontSize: 13 }}>Tap to pick image</Text>
+                  </View>
+                )}
+              </Pressable>
+
+              <Text style={styles.uploadLabel}>Title *</Text>
+              <TextInput value={uploadTitle} onChangeText={setUploadTitle} placeholder="Asset title" placeholderTextColor="#718099" style={styles.uploadInput} />
+
+              <Text style={styles.uploadLabel}>Category</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {categories.map(cat => (
+                    <Pressable key={cat} onPress={() => setUploadCategory(cat)}
+                      style={[styles.uploadCatChip, uploadCategory === cat && styles.uploadCatChipActive]}>
+                      <Text style={{ color: uploadCategory === cat ? '#041117' : '#8A93A3', fontSize: 12, fontWeight: '700', fontFamily: 'PlusJakartaSans_700Bold' }}>{cat}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+
+              <Text style={styles.uploadLabel}>Price ($) *</Text>
+              <TextInput value={uploadPrice} onChangeText={setUploadPrice} placeholder="0" placeholderTextColor="#718099" style={styles.uploadInput} keyboardType="numeric" />
+
+              <Text style={styles.uploadLabel}>Description</Text>
+              <TextInput value={uploadDesc} onChangeText={setUploadDesc} placeholder="Describe your asset..." placeholderTextColor="#718099" style={[styles.uploadInput, { minHeight: 80, textAlignVertical: 'top' }]} multiline />
+
+              <Pressable onPress={handleUploadAsset} disabled={uploading}
+                style={[styles.uploadSubmitBtn, uploading && { opacity: 0.6 }]}>
+                {uploading
+                  ? <ActivityIndicator color="#041117" />
+                  : <Text style={{ color: '#041117', fontWeight: '800', fontSize: 15, fontFamily: 'PlusJakartaSans_800ExtraBold' }}>Upload Asset</Text>
+                }
+              </Pressable>
             </ScrollView>
           </View>
         </View>
@@ -1263,5 +1461,62 @@ const styles = StyleSheet.create({
     backgroundColor: '#15C8FF',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Upload modal styles
+  imagePicker: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#1B2230',
+    borderStyle: 'dashed',
+  },
+  imagePickerPreview: {
+    width: '100%',
+    height: 160,
+  },
+  imagePickerPlaceholder: {
+    width: '100%',
+    height: 140,
+    backgroundColor: '#11151C',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadLabel: {
+    color: '#8A93A3',
+    fontSize: 13,
+    marginBottom: 8,
+    fontFamily: 'PlusJakartaSans_500Medium',
+  },
+  uploadInput: {
+    backgroundColor: '#11151C',
+    borderWidth: 1,
+    borderColor: '#1B2230',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: '#F4F8FF',
+    fontSize: 14,
+    fontFamily: 'PlusJakartaSans_400Regular',
+    marginBottom: 16,
+  },
+  uploadCatChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#11151C',
+    borderWidth: 1,
+    borderColor: '#1B2230',
+  },
+  uploadCatChipActive: {
+    backgroundColor: '#15C8FF',
+    borderColor: '#15C8FF',
+  },
+  uploadSubmitBtn: {
+    backgroundColor: '#15C8FF',
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
   },
 });
