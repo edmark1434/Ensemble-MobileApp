@@ -1,6 +1,7 @@
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signOut,
 } from "firebase/auth";
 
 import {
@@ -11,6 +12,7 @@ import {
   getDocs,
   query,
   where,
+  updateDoc,
 } from "firebase/firestore";
 
 import { auth, firestore } from "../firebase";
@@ -62,6 +64,7 @@ async function createUser(data) {
       email: data.email,
       fullName: data.fullName,
       username: data.username || "",
+      bio: data.bio || "",
       createdAt: new Date(),
     });
 
@@ -94,7 +97,8 @@ async function signInOauth(userInfo) {
         uid: user.uid,
         email: user.email,
         fullName: user.displayName,
-        username: "",
+        username: user.displayName ? user.displayName.split(' ')[0].toLowerCase() : "",
+        bio: "",
       };
 
       await createUser(userData);
@@ -177,6 +181,58 @@ async function getUserByEmail(email) {
   }
 }
 
+// =====================
+// GET USER BY ID
+// =====================
+async function getUserById(uid) {
+  try {
+    const userDoc = await getDoc(doc(firestore, "users", uid));
+    if (userDoc.exists()) {
+      return {
+        status: 200,
+        user: userDoc.data(),
+      };
+    }
+    return {
+      status: 404,
+      error: "User not found",
+    };
+  } catch (error) {
+    return {
+      status: 500,
+      error: error.message,
+    };
+  }
+}
+
+// =====================
+// UPDATE USER
+// =====================
+async function updateUser(uid, data) {
+  try {
+    const userRef = doc(firestore, "users", uid);
+    await updateDoc(userRef, data);
+    return { status: 200 };
+  } catch (error) {
+    return {
+      status: 500,
+      error: error.message,
+    };
+  }
+}
+
+
+// =====================
+// SIGN OUT
+// =====================
+async function signOutUser() {
+  try {
+    await signOut(auth);
+    return { status: 200 };
+  } catch (error) {
+    return { status: 500, error: error.message };
+  }
+}
 
 // =====================
 export {
@@ -186,4 +242,7 @@ export {
   signInOauth,
   getUserByEmail,
   getUserByUsername,
+  getUserById,
+  updateUser,
+  signOutUser,
 };

@@ -264,7 +264,7 @@ export default function SignUp() {
                 {/* Email */}
                 <View style={styles.inputGroup}>
                   <View style={[styles.inputWrapper, focusedField === 'email' && styles.inputWrapperFocused]}>
-                    <MaterialIcons name="email-outline" size={18} color="#7E8798" style={styles.inputIcon} />
+                    <MaterialIcons name="mail-outline" size={18} color="#7E8798" style={styles.inputIcon} />
                     <TextInput
                       style={styles.input}
                       placeholder="Email"

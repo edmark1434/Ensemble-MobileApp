@@ -13,7 +13,8 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  Platform
 } from 'react-native';
 const { width, height } = Dimensions.get('window');
 
@@ -26,11 +27,13 @@ const CAROUSEL_IMAGES = [
 const CAROUSEL_INTERVAL = 4000;
 
 
+if (Platform.OS !== 'web') {
   GoogleSignin.configure({
     webClientId: process.env.WEB_CLIENT_ID,
     offlineAccess: true,
     forceCodeForRefreshToken: true,
   });
+}
 
 
 export default function GetStarted() {
@@ -380,6 +383,5 @@ const styles = StyleSheet.create({
   dot: {
     height: 6,
     borderRadius: 3,
-    transition: 'width 0.3s ease',
   },
 });

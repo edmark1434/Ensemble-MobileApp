@@ -193,7 +193,7 @@ export default function Login() {
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Email</Text>
                   <View style={[styles.inputWrapper, focusedField === 'email' && styles.inputWrapperFocused]}>
-                    <MaterialIcons name="email-outline" size={18} color="#7E8798" style={styles.inputIcon} />
+                    <MaterialIcons name="mail-outline" size={18} color="#7E8798" style={styles.inputIcon} />
                     <TextInput
                       style={styles.input}
                       placeholder="name@ensemble.com"
@@ -206,7 +206,7 @@ export default function Login() {
                       autoCapitalize="none"
                     />
                   </View>
-                  {error.email && <Text style={styles.fieldError}>{error.email}</Text>}
+                  {error.email ? <Text style={styles.fieldError}>{error.email}</Text> : null}
                 </View>
 
                 {/* Password Input */}
@@ -229,7 +229,7 @@ export default function Login() {
                       <MaterialIcons name={hidePassword ? 'visibility-off' : 'visibility'} size={18} color="#7E8798" />
                     </TouchableOpacity>
                   </View>
-                  {error.password && <Text style={styles.fieldError}>{error.password}</Text>}
+                  {error.password ? <Text style={styles.fieldError}>{error.password}</Text> : null}
                 </View>
 
                 {/* Forgot Password */}
