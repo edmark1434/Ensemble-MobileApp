@@ -8,11 +8,11 @@ import {
   doc,
   setDoc,
   getDoc,
+  updateDoc,
   collection,
   getDocs,
   query,
   where,
-  updateDoc,
 } from "firebase/firestore";
 
 import { auth, firestore } from "../firebase";
@@ -58,13 +58,17 @@ async function signIn(email, password) {
 // =====================
 async function createUser(data) {
   try {
-
     await setDoc(doc(firestore, "users", data.uid), {
       uid: data.uid,
       email: data.email,
       fullName: data.fullName,
       username: data.username || "",
       bio: data.bio || "",
+      aboutMe: data.aboutMe || "",
+      dob: data.dob || "",
+      skills: data.skills || "",
+      showAge: false,
+      avatarUri: "",
       createdAt: new Date(),
     });
 
@@ -72,7 +76,6 @@ async function createUser(data) {
 
   } catch (error) {
     console.log("CREATE USER ERROR:", error);
-
     return {
       status: 500,
       error: error.message,
@@ -92,15 +95,19 @@ async function signInOauth(userInfo) {
 
     // IF NOT EXIST → CREATE FIRESTORE USER
     if (existingUser.status === 404) {
-
+      const firstName = user.displayName ? user.displayName.split(' ')[0].toLowerCase() : "";
       const userData = {
         uid: user.uid,
         email: user.email,
         fullName: user.displayName,
-        username: user.displayName ? user.displayName.split(' ')[0].toLowerCase() : "",
+        username: firstName,
         bio: "",
+        aboutMe: "",
+        dob: "",
+        skills: "",
+        showAge: false,
+        avatarUri: "",
       };
-
       await createUser(userData);
     }
 
@@ -214,6 +221,7 @@ async function updateUser(uid, data) {
     await updateDoc(userRef, data);
     return { status: 200 };
   } catch (error) {
+    console.log("UPDATE USER ERROR:", error);
     return {
       status: 500,
       error: error.message,
@@ -233,6 +241,7 @@ async function signOutUser() {
     return { status: 500, error: error.message };
   }
 }
+
 
 // =====================
 export {

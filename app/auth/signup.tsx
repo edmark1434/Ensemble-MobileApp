@@ -3,6 +3,7 @@ import { Colors } from '@/constants/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   ActivityIndicator,
@@ -11,6 +12,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   View,
   Animated,
   KeyboardAvoidingView,
@@ -28,6 +30,10 @@ export default function SignUp() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [hidePassword, setHidePassword] = useState(true);
   const [hideConfirmPassword, setHideConfirmPassword] = useState(true);
+  const [dob, setDob] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [bio, setBio] = useState('');
+  const [skills, setSkills] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
@@ -129,6 +135,9 @@ export default function SignUp() {
           email: response.user.email,
           fullName,
           username,
+          bio,
+          dob,
+          skills: skills.slice(0, 100),
         });
 
         setIsSuccess(true);
@@ -331,6 +340,77 @@ export default function SignUp() {
                     </TouchableOpacity>
                   </View>
                   {errors.confirmPassword ? <Text style={styles.fieldError}>{errors.confirmPassword}</Text> : null}
+                </View>
+
+                {/* Date of Birth */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.fieldLabel}>Date of Birth</Text>
+                  <Pressable
+                    style={[styles.inputWrapper, styles.dobPressable, focusedField === 'dob' && styles.inputWrapperFocused]}
+                    onPress={() => { setFocusedField('dob'); setShowDatePicker(true); }}
+                    onBlur={() => setFocusedField(null)}
+                  >
+                    <MaterialIcons name="calendar-today" size={18} color="#7E8798" style={styles.inputIcon} />
+                    <Text style={[styles.input, { color: dob ? '#F4F8FF' : '#6B6F73' }]}>
+                      {dob ? dob : 'Select date of birth'}
+                    </Text>
+                  </Pressable>
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={dob ? new Date(dob) : new Date(2000, 0, 1)}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      maximumDate={new Date()}
+                      onChange={(_event: any, selectedDate?: Date) => {
+                        setShowDatePicker(Platform.OS === 'ios');
+                        setFocusedField(null);
+                        if (selectedDate) {
+                          const yyyy = selectedDate.getFullYear();
+                          const mm = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                          const dd = String(selectedDate.getDate()).padStart(2, '0');
+                          setDob(`${yyyy}-${mm}-${dd}`);
+                        }
+                      }}
+                    />
+                  )}
+                </View>
+
+                {/* Bio */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.fieldLabel}>Bio / Tagline <Text style={styles.fieldLabelOptional}>(optional)</Text></Text>
+                  <View style={[styles.inputWrapper, styles.bioWrapper, focusedField === 'bio' && styles.inputWrapperFocused]}>
+                    <MaterialIcons name="edit" size={18} color="#7E8798" style={[styles.inputIcon, { alignSelf: 'flex-start', marginTop: 13 }]} />
+                    <TextInput
+                      style={[styles.input, styles.bioInput]}
+                      placeholder="A short tagline about yourself..."
+                      placeholderTextColor="#6B6F73"
+                      value={bio}
+                      onChangeText={setBio}
+                      onFocus={() => setFocusedField('bio')}
+                      onBlur={() => setFocusedField(null)}
+                      multiline
+                      numberOfLines={3}
+                    />
+                  </View>
+                </View>
+
+                {/* Skills */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.fieldLabel}>Skills <Text style={styles.fieldLabelOptional}>(optional, comma-separated, {100 - skills.length} left)</Text></Text>
+                  <View style={[styles.inputWrapper, focusedField === 'skills' && styles.inputWrapperFocused]}>
+                    <MaterialIcons name="workspace-premium" size={18} color="#7E8798" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="e.g. Video Editing, Motion Graphics"
+                      placeholderTextColor="#6B6F73"
+                      value={skills}
+                      onChangeText={(t) => setSkills(t.slice(0, 100))}
+                      onFocus={() => setFocusedField('skills')}
+                      onBlur={() => setFocusedField(null)}
+                      maxLength={100}
+                      autoCapitalize="none"
+                    />
+                  </View>
                 </View>
 
                 {/* Message */}
@@ -598,5 +678,31 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 13,
     fontFamily: 'PlusJakartaSans_400Regular',
+  },
+
+  // New field styles
+  fieldLabel: {
+    color: '#8A93A3',
+    fontSize: 12,
+    marginBottom: 6,
+    marginLeft: 2,
+    fontFamily: 'PlusJakartaSans_500Medium',
+  },
+  fieldLabelOptional: {
+    color: '#4B5563',
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans_400Regular',
+  },
+  dobPressable: {
+    // extends inputWrapper
+  },
+  bioWrapper: {
+    alignItems: 'flex-start',
+    paddingVertical: 4,
+  },
+  bioInput: {
+    minHeight: 70,
+    textAlignVertical: 'top',
+    paddingTop: 10,
   },
 });
