@@ -18,11 +18,11 @@ export default function ContinueWithGoogle({ onSuccess, onError, disabled }: Pro
 
   const signIn = useCallback(async () => {
     try {
-      setLoading(true);
-
       if (isWeb) {
+        // Call signInWithPopup immediately to preserve the user gesture context
         const result = await signInWithPopup(auth, provider);
-        // ✅ Minimal payload for faster processing
+        setLoading(true);
+        // Minimal payload for faster processing
         onSuccess?.({
           data: {
             user: {
@@ -36,14 +36,16 @@ export default function ContinueWithGoogle({ onSuccess, onError, disabled }: Pro
       }
 
       // Native (Android/iOS)
+      setLoading(true);
       await GoogleSignin.hasPlayServices();
       const userInfo = await GoogleSignin.signIn();
       onSuccess?.(userInfo);
 
     } catch (error: any) {
       onError?.(error.message || 'Google sign-in failed');
-    } finally {
       setLoading(false);
+    } finally {
+      if (isWeb) setLoading(false);
     }
   }, [onSuccess, onError, provider]);
 

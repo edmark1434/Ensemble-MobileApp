@@ -14,10 +14,15 @@ import {
   TextInput,
   TouchableOpacity,
   Dimensions,
-  FlatList
+  FlatList,
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import FloatingNavBar from '@/components/FloatingNavBar';
+import { auth } from '../../firebase';
+import { getUserById, updateUser, signOutUser } from '../../function/user';
+import { useRouter } from 'expo-router';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -121,11 +126,20 @@ const userCreatedAssets: CreatedAsset[] = [
 ];
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('portfolio');
   const [showStats, setShowStats] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [bio, setBio] = useState('Professional video editor and motion graphics artist with 5+ years of experience.');
+  const [bio, setBio] = useState('');
+  
+  const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [isGoogleUser, setIsGoogleUser] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
   const [followers, setFollowers] = useState(1240);
   const [following, setFollowing] = useState(342);
 
@@ -144,6 +158,28 @@ export default function ProfileScreen() {
     ]).start();
   }, []);
 
+  const loadUserData = async () => {
+    if (!auth.currentUser) return;
+    try {
+      // Check if user signed in with Google
+      const providerData = auth.currentUser.providerData;
+      const isGoogle = providerData.some((p: any) => p.providerId === 'google.com');
+      setIsGoogleUser(isGoogle);
+
+      const response = await getUserById(auth.currentUser.uid);
+      if (response.status === 200 && response.user) {
+        setFullName(response.user.fullName || '');
+        setUsername(response.user.username || '');
+        setEmail(response.user.email || '');
+        setBio(response.user.bio || '');
+      }
+    } catch (error) {
+      console.log('Error loading user data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
       pageFadeAnim.setValue(0);
@@ -154,8 +190,43 @@ export default function ProfileScreen() {
         Animated.spring(pageSlideAnim, { toValue: 0, tension: 80, friction: 10, useNativeDriver: true }),
         Animated.spring(pageScaleAnim, { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }),
       ]).start();
+      
+      loadUserData();
     }, [])
   );
+
+  const handleSaveProfile = async () => {
+    if (!auth.currentUser) return;
+    setIsSaving(true);
+    try {
+      const updates: any = { fullName, username, bio };
+      if (!isGoogleUser) updates.email = email;
+      const response = await updateUser(auth.currentUser.uid, updates);
+      if (response.status === 200) {
+        setShowEditModal(false);
+      } else {
+        Alert.alert('Error', 'Failed to update profile');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update profile');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const res = await signOutUser();
+      if (res.status === 200) {
+        setShowMenu(false);
+        router.replace('/auth/login');
+      } else {
+        Alert.alert('Error', 'Failed to log out');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to log out');
+    }
+  };
 
   const toggleStats = () => {
     const toValue = showStats ? 0 : 1;
@@ -296,9 +367,15 @@ export default function ProfileScreen() {
 
           {/* User Info */}
           <View style={styles.userInfo}>
-            <Text style={styles.name}>Kaelen Vance</Text>
-            <Text style={styles.email}>kaelen.vance@ensemble.com</Text>
-            <Text style={styles.bio}>{bio}</Text>
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#15C8FF" />
+            ) : (
+              <>
+                <Text style={styles.name}>{fullName}</Text>
+                <Text style={styles.email}>@{username} • {email}</Text>
+                <Text style={styles.bio}>{bio}</Text>
+              </>
+            )}
 
             {/* Followers/Following */}
             <View style={styles.followStats}>
@@ -411,7 +488,7 @@ export default function ProfileScreen() {
               <Text style={styles.menuItemText}>Share Profile</Text>
             </Pressable>
             <View style={styles.menuDivider} />
-            <Pressable style={[styles.menuItem, styles.logoutItem]}>
+            <Pressable style={[styles.menuItem, styles.logoutItem]} onPress={handleLogout}>
               <MaterialIcons name="logout" size={20} color="#EF4444" />
               <Text style={[styles.menuItemText, styles.logoutText]}>Logout</Text>
             </Pressable>
@@ -429,6 +506,39 @@ export default function ProfileScreen() {
                 <MaterialIcons name="close" size={24} color="#F4F8FF" />
               </Pressable>
             </View>
+            <Text style={styles.inputLabel}>Full Name</Text>
+            <TextInput
+              value={fullName}
+              onChangeText={setFullName}
+              placeholder="Your full name"
+              placeholderTextColor="#718099"
+              style={styles.textInput}
+            />
+
+            <Text style={styles.inputLabel}>Username</Text>
+            <TextInput
+              value={username}
+              onChangeText={setUsername}
+              placeholder="Your username"
+              placeholderTextColor="#718099"
+              style={styles.textInput}
+              autoCapitalize="none"
+            />
+
+            <Text style={styles.inputLabel}>
+              Email{isGoogleUser ? ' (managed by Google)' : ''}
+            </Text>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Your email"
+              placeholderTextColor="#718099"
+              style={[styles.textInput, isGoogleUser && styles.textInputDisabled]}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              editable={!isGoogleUser}
+            />
+
             <Text style={styles.inputLabel}>Bio</Text>
             <TextInput
               value={bio}
@@ -439,8 +549,12 @@ export default function ProfileScreen() {
               multiline
               numberOfLines={4}
             />
-            <Pressable style={styles.saveButton} onPress={() => setShowEditModal(false)}>
-              <Text style={styles.saveButtonText}>Save Changes</Text>
+            <Pressable style={styles.saveButton} onPress={handleSaveProfile} disabled={isSaving}>
+              {isSaving ? (
+                <ActivityIndicator size="small" color="#041117" />
+              ) : (
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              )}
             </Pressable>
           </View>
         </View>
@@ -574,6 +688,8 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { color: '#F4F8FF', fontSize: 20, fontWeight: '800', fontFamily: 'PlusJakartaSans_800ExtraBold' },
   inputLabel: { color: '#8A93A3', fontSize: 13, marginBottom: 8, fontFamily: 'PlusJakartaSans_500Medium' },
+  textInput: { backgroundColor: '#0E1620', borderWidth: 1, borderColor: '#1B2230', borderRadius: 12, padding: 12, color: '#F4F8FF', fontSize: 13, fontFamily: 'PlusJakartaSans_400Regular', marginBottom: 16 },
+  textInputDisabled: { opacity: 0.5, color: '#718099' },
   bioInput: { backgroundColor: '#0E1620', borderWidth: 1, borderColor: '#1B2230', borderRadius: 12, padding: 12, color: '#F4F8FF', fontSize: 13, minHeight: 100, textAlignVertical: 'top', fontFamily: 'PlusJakartaSans_400Regular' },
   saveButton: { backgroundColor: '#15C8FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
   saveButtonText: { color: '#041117', fontSize: 14, fontWeight: '800', fontFamily: 'PlusJakartaSans_800ExtraBold' },
