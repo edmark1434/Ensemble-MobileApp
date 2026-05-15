@@ -37,7 +37,6 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
-.env
 app-example
 
 # generated native folders
@@ -46,3 +45,5 @@ app-example
 
 google-services.json
 GoogleService-Info.plist
+.local.env
+package-lock.json
